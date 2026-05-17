@@ -1,7 +1,17 @@
 import { Link } from "@tanstack/react-router";
-import { Trophy } from "lucide-react";
+import { Trophy, LogIn } from "lucide-react";
+import { useAuth } from "@/hooks/use-auth";
 
 export function Navbar() {
+  const { user, profile } = useAuth();
+
+  const initials = profile?.display_name
+    ?.split(" ")
+    .map((s) => s[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase() ?? "?";
+
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 pt-4">
@@ -15,17 +25,43 @@ export function Navbar() {
             </div>
             <div className="flex flex-col leading-none">
               <span className="font-display font-bold text-sm tracking-tight">PRODE</span>
-              <span className="font-mono text-[10px] text-muted-foreground tracking-widest">MUNDIAL 2026</span>
+              <span className="font-mono text-[10px] text-muted-foreground tracking-widest">
+                MUNDIAL 2026
+              </span>
             </div>
           </Link>
+
           <div className="hidden md:flex items-center gap-6 text-sm font-medium">
-            <a href="#premios" className="hover:text-primary transition">Premios</a>
-            <a href="#como-funciona" className="hover:text-primary transition">Cómo funciona</a>
-            <a href="#ranking" className="hover:text-primary transition">Ranking</a>
+            <a href="/#premios" className="hover:text-primary transition">Premios</a>
+            <a href="/#como-funciona" className="hover:text-primary transition">Cómo funciona</a>
+            <a href="/#ranking" className="hover:text-primary transition">Ranking</a>
           </div>
-          <button className="relative inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary px-4 sm:px-5 py-2 text-sm font-semibold text-background hover:shadow-glow transition shadow-glow">
-            Unirme al Prode
-          </button>
+
+          {user && profile ? (
+            <Link
+              to="/perfil"
+              className="flex items-center gap-2.5 glass rounded-xl pl-2 pr-3.5 py-1.5 hover:bg-card transition"
+            >
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden">
+                {profile.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-[10px] font-bold text-background">{initials}</span>
+                )}
+              </div>
+              <span className="text-sm font-medium hidden sm:block max-w-[120px] truncate">
+                {profile.display_name}
+              </span>
+            </Link>
+          ) : (
+            <Link
+              to="/auth"
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary px-4 sm:px-5 py-2 text-sm font-semibold text-background shadow-glow hover:scale-[1.02] transition"
+            >
+              <LogIn className="w-4 h-4" />
+              <span className="hidden sm:inline">Ingresar</span>
+            </Link>
+          )}
         </nav>
       </div>
     </header>
