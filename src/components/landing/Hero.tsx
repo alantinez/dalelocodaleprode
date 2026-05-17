@@ -1,4 +1,5 @@
 import { motion } from "motion/react";
+import { Link } from "@tanstack/react-router";
 import { Sparkles, Trophy, Users } from "lucide-react";
 import heroImg from "@/assets/hero-mundial.jpg";
 import { Countdown } from "./Countdown";
@@ -61,10 +62,13 @@ export function Hero() {
               transition={{ duration: 0.7, delay: 0.3 }}
               className="mt-8 flex flex-col sm:flex-row gap-3"
             >
-              <button className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary px-6 py-4 font-semibold text-background shadow-glow hover:scale-[1.02] transition">
+              <Link
+                to="/auth"
+                className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary px-6 py-4 font-semibold text-background shadow-glow hover:scale-[1.02] transition"
+              >
                 <Trophy className="w-5 h-5" />
                 Unirme al Prode · {formatARS(PRODE_CONFIG.entryFee)}
-              </button>
+              </Link>
               <button className="inline-flex items-center justify-center gap-2 rounded-2xl glass px-6 py-4 font-semibold hover:bg-card transition">
                 Ver fixture completo
               </button>

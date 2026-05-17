@@ -1,4 +1,5 @@
 import confetti from "canvas-confetti";
+import { Link } from "@tanstack/react-router";
 import { Trophy } from "lucide-react";
 import { PRODE_CONFIG, formatARS } from "@/lib/prode/config";
 
@@ -25,13 +26,14 @@ export function CtaBand() {
               Sumate por {formatARS(PRODE_CONFIG.entryFee)} y peleá el pozo de {formatARS(PRODE_CONFIG.entryFee * PRODE_CONFIG.participants)}.
               Los primeros 3 se lo llevan todo.
             </p>
-            <button
+            <Link
+              to="/auth"
               onClick={fire}
               className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary px-7 py-4 font-semibold text-background shadow-glow hover:scale-[1.03] transition"
             >
               <Trophy className="w-5 h-5" />
               Unirme al PRODE Mundial 2026
-            </button>
+            </Link>
             <p className="mt-4 text-xs font-mono uppercase tracking-widest text-muted-foreground">
               Las predicciones cierran al inicio de cada partido
             </p>
