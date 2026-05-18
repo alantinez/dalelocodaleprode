@@ -15,6 +15,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedFixtureRouteImport } from './routes/_authenticated/fixture'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 
 const RankingRoute = RankingRouteImport.update({
   id: '/ranking',
@@ -45,11 +46,17 @@ const AuthenticatedFixtureRoute = AuthenticatedFixtureRouteImport.update({
   path: '/fixture',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/ranking': typeof RankingRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/fixture': typeof AuthenticatedFixtureRoute
   '/perfil': typeof AuthenticatedPerfilRoute
 }
@@ -57,6 +64,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/ranking': typeof RankingRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/fixture': typeof AuthenticatedFixtureRoute
   '/perfil': typeof AuthenticatedPerfilRoute
 }
@@ -66,20 +74,22 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/auth': typeof AuthRoute
   '/ranking': typeof RankingRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/fixture': typeof AuthenticatedFixtureRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/ranking' | '/fixture' | '/perfil'
+  fullPaths: '/' | '/auth' | '/ranking' | '/admin' | '/fixture' | '/perfil'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/ranking' | '/fixture' | '/perfil'
+  to: '/' | '/auth' | '/ranking' | '/admin' | '/fixture' | '/perfil'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
     | '/ranking'
+    | '/_authenticated/admin'
     | '/_authenticated/fixture'
     | '/_authenticated/perfil'
   fileRoutesById: FileRoutesById
@@ -135,15 +145,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFixtureRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedFixtureRoute: typeof AuthenticatedFixtureRoute
   AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedFixtureRoute: AuthenticatedFixtureRoute,
   AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
 }
@@ -161,3 +180,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
