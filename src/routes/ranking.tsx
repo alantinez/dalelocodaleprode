@@ -43,14 +43,14 @@ function RankingPage() {
               <ArrowLeft className="w-3.5 h-3.5" /> Volver
             </Link>
             <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight">
-              Tabla de <span className="text-gradient">posiciones</span>
+              Tabla de <span className="text-gradient-hero">posiciones</span>
             </h1>
             <p className="text-muted-foreground mt-2">
               Actualizada en tiempo real · Top 100 participantes
             </p>
           </div>
           <div className="hidden sm:flex items-center gap-2 glass rounded-xl px-3 py-2">
-            <div className="w-2 h-2 rounded-full bg-success animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             <span className="text-xs font-mono text-muted-foreground">LIVE</span>
           </div>
         </div>
