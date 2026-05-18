@@ -9,12 +9,19 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as RankingRouteImport } from './routes/ranking'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated/perfil'
 import { Route as AuthenticatedFixtureRouteImport } from './routes/_authenticated/fixture'
+import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 
+const RankingRoute = RankingRouteImport.update({
+  id: '/ranking',
+  path: '/ranking',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -39,16 +46,25 @@ const AuthenticatedFixtureRoute = AuthenticatedFixtureRouteImport.update({
   path: '/fixture',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedAdminRoute = AuthenticatedAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/ranking': typeof RankingRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/fixture': typeof AuthenticatedFixtureRoute
   '/perfil': typeof AuthenticatedPerfilRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/ranking': typeof RankingRoute
+  '/admin': typeof AuthenticatedAdminRoute
   '/fixture': typeof AuthenticatedFixtureRoute
   '/perfil': typeof AuthenticatedPerfilRoute
 }
@@ -57,19 +73,23 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/auth': typeof AuthRoute
+  '/ranking': typeof RankingRoute
+  '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/fixture': typeof AuthenticatedFixtureRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/fixture' | '/perfil'
+  fullPaths: '/' | '/auth' | '/ranking' | '/admin' | '/fixture' | '/perfil'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/fixture' | '/perfil'
+  to: '/' | '/auth' | '/ranking' | '/admin' | '/fixture' | '/perfil'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/ranking'
+    | '/_authenticated/admin'
     | '/_authenticated/fixture'
     | '/_authenticated/perfil'
   fileRoutesById: FileRoutesById
@@ -78,10 +98,18 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   AuthRoute: typeof AuthRoute
+  RankingRoute: typeof RankingRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/ranking': {
+      id: '/ranking'
+      path: '/ranking'
+      fullPath: '/ranking'
+      preLoaderRoute: typeof RankingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -117,15 +145,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFixtureRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/admin': {
+      id: '/_authenticated/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AuthenticatedAdminRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
 interface AuthenticatedRouteChildren {
+  AuthenticatedAdminRoute: typeof AuthenticatedAdminRoute
   AuthenticatedFixtureRoute: typeof AuthenticatedFixtureRoute
   AuthenticatedPerfilRoute: typeof AuthenticatedPerfilRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+  AuthenticatedAdminRoute: AuthenticatedAdminRoute,
   AuthenticatedFixtureRoute: AuthenticatedFixtureRoute,
   AuthenticatedPerfilRoute: AuthenticatedPerfilRoute,
 }
@@ -138,6 +175,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   AuthRoute: AuthRoute,
+  RankingRoute: RankingRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
