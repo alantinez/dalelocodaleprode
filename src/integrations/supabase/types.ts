@@ -14,6 +14,113 @@ export type Database = {
   }
   public: {
     Tables: {
+      matches: {
+        Row: {
+          away_score: number | null
+          away_team_id: string | null
+          created_at: string
+          group: string | null
+          home_score: number | null
+          home_team_id: string | null
+          id: string
+          kickoff: string
+          match_number: number | null
+          stage: Database["public"]["Enums"]["match_stage"]
+          status: Database["public"]["Enums"]["match_status"]
+          updated_at: string
+          venue: string | null
+        }
+        Insert: {
+          away_score?: number | null
+          away_team_id?: string | null
+          created_at?: string
+          group?: string | null
+          home_score?: number | null
+          home_team_id?: string | null
+          id?: string
+          kickoff: string
+          match_number?: number | null
+          stage?: Database["public"]["Enums"]["match_stage"]
+          status?: Database["public"]["Enums"]["match_status"]
+          updated_at?: string
+          venue?: string | null
+        }
+        Update: {
+          away_score?: number | null
+          away_team_id?: string | null
+          created_at?: string
+          group?: string | null
+          home_score?: number | null
+          home_team_id?: string | null
+          id?: string
+          kickoff?: string
+          match_number?: number | null
+          stage?: Database["public"]["Enums"]["match_stage"]
+          status?: Database["public"]["Enums"]["match_status"]
+          updated_at?: string
+          venue?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "matches_away_team_id_fkey"
+            columns: ["away_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "matches_home_team_id_fkey"
+            columns: ["home_team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      predictions: {
+        Row: {
+          away_score: number
+          created_at: string
+          home_score: number
+          id: string
+          is_exact: boolean
+          match_id: string
+          points: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          away_score: number
+          created_at?: string
+          home_score: number
+          id?: string
+          is_exact?: boolean
+          match_id: string
+          points?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          away_score?: number
+          created_at?: string
+          home_score?: number
+          id?: string
+          is_exact?: boolean
+          match_id?: string
+          points?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "predictions_match_id_fkey"
+            columns: ["match_id"]
+            isOneToOne: false
+            referencedRelation: "matches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -44,6 +151,36 @@ export type Database = {
           id?: string
           total_points?: number
           updated_at?: string
+        }
+        Relationships: []
+      }
+      teams: {
+        Row: {
+          code: string
+          confederation: string | null
+          created_at: string
+          flag_url: string | null
+          group: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          code: string
+          confederation?: string | null
+          created_at?: string
+          flag_url?: string | null
+          group?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          code?: string
+          confederation?: string | null
+          created_at?: string
+          flag_url?: string | null
+          group?: string | null
+          id?: string
+          name?: string
         }
         Relationships: []
       }
@@ -83,6 +220,8 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "participant"
+      match_stage: "group" | "r32" | "r16" | "qf" | "sf" | "third" | "final"
+      match_status: "scheduled" | "live" | "finished" | "postponed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -211,6 +350,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "participant"],
+      match_stage: ["group", "r32", "r16", "qf", "sf", "third", "final"],
+      match_status: ["scheduled", "live", "finished", "postponed"],
     },
   },
 } as const

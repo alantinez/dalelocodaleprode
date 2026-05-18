@@ -32,9 +32,22 @@ export function Navbar() {
           </Link>
 
           <div className="hidden md:flex items-center gap-6 text-sm font-medium">
-            <a href="/#premios" className="hover:text-primary transition">Premios</a>
-            <a href="/#como-funciona" className="hover:text-primary transition">Cómo funciona</a>
-            <a href="/#ranking" className="hover:text-primary transition">Ranking</a>
+            {user ? (
+              <>
+                <Link to="/fixture" className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>
+                  Fixture
+                </Link>
+                <Link to="/perfil" className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>
+                  Mi perfil
+                </Link>
+              </>
+            ) : (
+              <>
+                <a href="/#premios" className="hover:text-primary transition">Premios</a>
+                <a href="/#como-funciona" className="hover:text-primary transition">Cómo funciona</a>
+                <a href="/#ranking" className="hover:text-primary transition">Ranking</a>
+              </>
+            )}
           </div>
 
           {user && profile ? (
