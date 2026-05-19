@@ -24,10 +24,10 @@ export function Navbar() {
               </div>
             </div>
             <div className="flex flex-col leading-none">
-              <span className="font-display font-bold text-sm tracking-tight">PRODE</span>
-              <span className="font-mono text-[10px] text-muted-foreground tracking-widest">
-                MUNDIAL 2026
-              </span>
+<span className="font-display font-bold text-sm tracking-tight">DALE DALE</span>
+<span className="font-mono text-[10px] text-muted-foreground tracking-widest">
+  MUNDIAL 2026
+</span>
             </div>
           </Link>
 
