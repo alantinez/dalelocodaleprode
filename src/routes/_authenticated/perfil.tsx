@@ -5,6 +5,7 @@ import { Camera, LogOut, Trophy, Target, Flame, Loader2, Save } from "lucide-rea
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { AchievementsGrid } from "@/components/achievements/AchievementsGrid";
 
 export const Route = createFileRoute("/_authenticated/perfil")({
   component: PerfilPage,
@@ -170,6 +171,15 @@ function PerfilPage() {
             Guardar cambios
           </button>
         </div>
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="glass-strong rounded-3xl p-6 sm:p-8 mt-6"
+      >
+        <AchievementsGrid userId={user.id} />
       </motion.div>
     </div>
   );
