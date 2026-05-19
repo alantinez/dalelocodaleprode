@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StatsRouteImport } from './routes/stats'
 import { Route as RankingRouteImport } from './routes/ranking'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
@@ -17,6 +18,11 @@ import { Route as AuthenticatedPerfilRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedFixtureRouteImport } from './routes/_authenticated/fixture'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 
+const StatsRoute = StatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RankingRoute = RankingRouteImport.update({
   id: '/ranking',
   path: '/ranking',
@@ -56,6 +62,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/ranking': typeof RankingRoute
+  '/stats': typeof StatsRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/fixture': typeof AuthenticatedFixtureRoute
   '/perfil': typeof AuthenticatedPerfilRoute
@@ -64,6 +71,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/ranking': typeof RankingRoute
+  '/stats': typeof StatsRoute
   '/admin': typeof AuthenticatedAdminRoute
   '/fixture': typeof AuthenticatedFixtureRoute
   '/perfil': typeof AuthenticatedPerfilRoute
@@ -74,21 +82,30 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/auth': typeof AuthRoute
   '/ranking': typeof RankingRoute
+  '/stats': typeof StatsRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRoute
   '/_authenticated/fixture': typeof AuthenticatedFixtureRoute
   '/_authenticated/perfil': typeof AuthenticatedPerfilRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/auth' | '/ranking' | '/admin' | '/fixture' | '/perfil'
+  fullPaths:
+    | '/'
+    | '/auth'
+    | '/ranking'
+    | '/stats'
+    | '/admin'
+    | '/fixture'
+    | '/perfil'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/auth' | '/ranking' | '/admin' | '/fixture' | '/perfil'
+  to: '/' | '/auth' | '/ranking' | '/stats' | '/admin' | '/fixture' | '/perfil'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
     | '/ranking'
+    | '/stats'
     | '/_authenticated/admin'
     | '/_authenticated/fixture'
     | '/_authenticated/perfil'
@@ -99,10 +116,18 @@ export interface RootRouteChildren {
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   AuthRoute: typeof AuthRoute
   RankingRoute: typeof RankingRoute
+  StatsRoute: typeof StatsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/stats': {
+      id: '/stats'
+      path: '/stats'
+      fullPath: '/stats'
+      preLoaderRoute: typeof StatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/ranking': {
       id: '/ranking'
       path: '/ranking'
@@ -176,7 +201,18 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   AuthRoute: AuthRoute,
   RankingRoute: RankingRoute,
+  StatsRoute: StatsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
