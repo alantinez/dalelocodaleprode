@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import QRCode from "qrcode";
-import { Copy, Check, Banknote, Sparkles } from "lucide-react";
+import { Copy, Check, Banknote, Sparkles, Users } from "lucide-react";
 import { toast } from "sonner";
 import mascota from "@/assets/mascota-prode.png";
+import amigos from "@/assets/amigos.jpg";
 import { PRODE_CONFIG, formatARS } from "@/lib/prode/config";
 
 const CVU = "0000003100091909835217";
@@ -33,16 +32,6 @@ function CopyButton({ label, value }: { label: string; value: string }) {
 }
 
 export function TransferimeRaton() {
-  const qr = useQuery({
-    queryKey: ["qr", ALIAS],
-    queryFn: () =>
-      QRCode.toDataURL(`ALIAS:${ALIAS}\nCVU:${CVU}\nMonto:${PRODE_CONFIG.entryFee}`, {
-        margin: 1,
-        width: 320,
-        color: { dark: "#0b0b14", light: "#ffffffff" },
-      }),
-  });
-
   return (
     <section id="transferir" className="relative py-20 sm:py-28 overflow-hidden">
       <div className="absolute inset-0 -z-10 bg-gradient-to-b from-transparent via-primary/5 to-transparent" />
@@ -112,43 +101,30 @@ export function TransferimeRaton() {
             </div>
           </div>
 
-          {/* QR + mascota */}
+          {/* Foto del grupo */}
           <div className="relative">
-            <div className="glass-strong rounded-3xl p-6 sm:p-8 h-full flex flex-col items-center justify-center text-center relative overflow-hidden">
-              <div className="absolute inset-0 bg-gradient-to-br from-gold/10 via-transparent to-primary/10" />
-              <div className="relative">
-                {qr.data ? (
-                  <div className="rounded-2xl bg-white p-3 shadow-glow">
-                    <img src={qr.data} alt="QR de pago" className="w-44 h-44 sm:w-52 sm:h-52" />
-                  </div>
-                ) : (
-                  <div className="w-44 h-44 sm:w-52 sm:h-52 rounded-2xl bg-card animate-pulse" />
-                )}
-              </div>
-              <div className="relative mt-4 font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-                Escaneá y transferí
+            <div className="glass-strong rounded-3xl overflow-hidden h-full min-h-[300px] relative group">
+              <img
+                src={amigos}
+                alt="El grupo del prode"
+                className="w-full h-full object-cover object-center"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
+              <div className="absolute bottom-0 inset-x-0 p-6 text-center">
+                <div className="inline-flex items-center gap-2 glass rounded-full px-3 py-1.5 text-xs font-mono uppercase tracking-widest text-gold mb-2">
+                  <Users className="w-3 h-3" /> El grupo
+                </div>
+                <p className="font-display font-bold text-lg text-white drop-shadow">
+                  {PRODE_CONFIG.participants} cracks, un solo campeón 🏆
+                </p>
               </div>
             </div>
 
             {/* Mascota sticker */}
-            <div className="hidden sm:block absolute -bottom-6 -right-6 lg:-bottom-10 lg:-right-10 w-40 lg:w-52 pointer-events-none select-none animate-float">
+            <div className="hidden sm:block absolute -bottom-6 -right-6 lg:-bottom-8 lg:-right-8 w-32 lg:w-40 pointer-events-none select-none animate-float">
               <div className="absolute inset-0 -z-10 bg-gold/30 blur-2xl rounded-full" />
               <div className="relative rounded-2xl overflow-hidden border-4 border-gold shadow-glow rotate-6 hover:rotate-0 transition pointer-events-auto">
-                <img src={mascota} alt="Mascota oficial del Prode" className="w-full h-auto" />
-                <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-background/90 to-transparent p-2 text-center">
-                  <span className="font-display font-black text-[10px] uppercase tracking-widest text-gold">
-                    Transferí, ratón
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="sm:hidden mt-4 flex justify-center">
-              <div className="relative w-32">
-                <div className="absolute inset-0 -z-10 bg-gold/30 blur-2xl rounded-full" />
-                <div className="rounded-2xl overflow-hidden border-4 border-gold shadow-glow rotate-3">
-                  <img src={mascota} alt="Mascota oficial del Prode" className="w-full h-auto" />
-                </div>
+                <img src={mascota} alt="Mascota del Prode" className="w-full h-auto" />
               </div>
             </div>
           </div>
