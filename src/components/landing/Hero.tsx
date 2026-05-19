@@ -39,13 +39,12 @@ export function Hero() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.1 }}
-              className="font-display font-bold text-5xl sm:text-6xl lg:text-7xl leading-[0.95] tracking-tight"
-            >
-              El prode <br className="hidden sm:block" />
-              <span className="text-gradient-hero">más competitivo</span><br />
-              entre amigos.
-            </motion.h1>
-
+             className="font-display font-bold text-5xl sm:text-6xl lg:text-7xl leading-[0.95] tracking-tight"
+>
+  El prode <br className="hidden sm:block" />
+  <span className="text-gradient-hero">definitivo.</span><br />
+  Por la gloria eterna.
+</motion.h1>
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
