@@ -89,7 +89,7 @@ const handleGoogle = async () => {
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-glow">
             <Trophy className="w-5 h-5 text-background" strokeWidth={2.5} />
           </div>
-          <span className="font-display font-bold text-lg">PRODE Mundial 2026</span>
+<span className="font-display font-bold text-lg">Dale Dale</span>
         </Link>
 
         <div className="glass-strong rounded-2xl p-8">
