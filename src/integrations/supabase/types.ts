@@ -14,6 +14,36 @@ export type Database = {
   }
   public: {
     Tables: {
+      achievements: {
+        Row: {
+          created_at: string
+          description: string
+          icon: string
+          id: string
+          sort_order: number
+          tier: string
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          icon: string
+          id: string
+          sort_order?: number
+          tier?: string
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          icon?: string
+          id?: string
+          sort_order?: number
+          tier?: string
+          title?: string
+        }
+        Relationships: []
+      }
       matches: {
         Row: {
           away_score: number | null
@@ -183,6 +213,35 @@ export type Database = {
           name?: string
         }
         Relationships: []
+      }
+      user_achievements: {
+        Row: {
+          achievement_id: string
+          awarded_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          achievement_id: string
+          awarded_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          achievement_id?: string
+          awarded_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_achievements_achievement_id_fkey"
+            columns: ["achievement_id"]
+            isOneToOne: false
+            referencedRelation: "achievements"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

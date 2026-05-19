@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Trophy, LogIn, ShieldCheck } from "lucide-react";
+import { Trophy, LogIn, ShieldCheck, BarChart3 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
 export function Navbar() {
@@ -40,6 +40,9 @@ export function Navbar() {
                 <Link to="/ranking" className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>
                   Ranking
                 </Link>
+                <Link to="/stats" className="hover:text-primary transition inline-flex items-center gap-1" activeProps={{ className: "text-primary" }}>
+                  <BarChart3 className="w-3.5 h-3.5" /> Stats
+                </Link>
                 <Link to="/perfil" className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>
                   Mi perfil
                 </Link>
@@ -54,6 +57,7 @@ export function Navbar() {
                 <a href="/#premios" className="hover:text-primary transition">Premios</a>
                 <a href="/#como-funciona" className="hover:text-primary transition">Cómo funciona</a>
                 <Link to="/ranking" className="hover:text-primary transition">Ranking</Link>
+                <Link to="/stats" className="hover:text-primary transition">Stats</Link>
               </>
             )}
           </div>
