@@ -23,7 +23,7 @@ export const Route = createFileRoute("/stats")({
   component: StatsPage,
   head: () => ({
     meta: [
-      { title: "Estadísticas · PRODE Mundial 2026" },
+{ title: "Stats · Dale Dale" },
       { name: "description", content: "Estadísticas avanzadas, evolución y head-to-head del Prode del Mundial 2026." },
     ],
   }),
