@@ -17,7 +17,7 @@ import { BarChart3, TrendingUp, Target, Flame, Users, Swords, Trophy, Sparkles }
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/landing/Navbar";
 import { useAuth } from "@/hooks/use-auth";
-import mascota3 from "@/assets/mascota3.jpg";
+import mascota3 from "@/assets/mascota3.jpg.jpeg";
 
 export const Route = createFileRoute("/stats")({
   component: StatsPage,
