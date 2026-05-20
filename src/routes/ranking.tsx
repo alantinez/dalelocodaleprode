@@ -9,7 +9,7 @@ import mascota2 from "@/assets/mascota2.jpg.jpeg";
 export const Route = createFileRoute("/ranking")({
   head: () => ({
     meta: [
-      { title: "Ranking · PRODE Mundial 2026" },
+{ title: "Ranking · Dale Dale" },
       {
         name: "description",
         content: "Tabla de posiciones en vivo del PRODE Mundial 2026. Mirá quién va primero, los aciertos exactos y la racha de cada participante.",
