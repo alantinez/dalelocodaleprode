@@ -12,7 +12,6 @@ export const Route = createFileRoute("/_authenticated/fixture")({
 });
 
 const GROUPS = ["TODOS", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"] as const;
-
 function FixturePage() {
   const { user } = useAuth();
   const [group, setGroup] = useState<(typeof GROUPS)[number]>("TODOS");
