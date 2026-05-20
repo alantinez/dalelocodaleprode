@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Trophy, Medal, Loader2, ArrowLeft, Target, Flame, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/landing/Navbar";
+import mascota2 from "@/assets/mascota2.jpg";
+
 
 export const Route = createFileRoute("/ranking")({
   head: () => ({
@@ -37,14 +39,19 @@ function RankingPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-28 pb-20">
-        <div className="mb-8 flex items-center justify-between">
+        <div className="mb-8 flex items-center justify-between relative">
           <div>
             <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition mb-3">
               <ArrowLeft className="w-3.5 h-3.5" /> Volver
             </Link>
-            <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight">
-              Tabla de <span className="text-gradient-hero">posiciones</span>
-            </h1>
+<h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight">
+  Tabla de <span className="text-gradient-hero">posiciones</span>
+</h1>
+<div className="absolute -top-4 right-0 w-20 sm:w-24 pointer-events-none select-none hidden sm:block">
+  <div className="rounded-xl overflow-hidden border-2 border-primary shadow-glow rotate-3">
+    <img src={mascota2} alt="" className="w-full h-auto" />
+  </div>
+</div>
             <p className="text-muted-foreground mt-2">
               Actualizada en tiempo real · Top 100 participantes
             </p>
