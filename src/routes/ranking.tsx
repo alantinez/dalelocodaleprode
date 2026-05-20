@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Trophy, Medal, Loader2, ArrowLeft, Target, Flame, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/landing/Navbar";
-import mascota2 from "@/assets/mascota2.jpg";
+import mascota2 from "@/assets/mascota2.jpg.jpeg";
 
 
 export const Route = createFileRoute("/ranking")({
