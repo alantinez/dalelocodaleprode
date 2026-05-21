@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { AchievementsGrid } from "@/components/achievements/AchievementsGrid";
+import foto8 from "@/assets/foto8.jpg";
 
 export const Route = createFileRoute("/_authenticated/perfil")({
   component: PerfilPage,
@@ -83,7 +84,12 @@ function PerfilPage() {
         animate={{ opacity: 1, y: 0 }}
         className="glass-strong rounded-3xl p-6 sm:p-10 relative overflow-hidden"
       >
-        <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+<div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+<div className="absolute top-4 right-4 w-20 pointer-events-none select-none hidden sm:block z-10">
+  <div className="rounded-xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-3">
+    <img src={foto8} alt="" className="w-full h-auto" />
+  </div>
+</div>
 
         <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-6">
           <div className="relative group">
