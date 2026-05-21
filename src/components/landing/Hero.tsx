@@ -77,8 +77,9 @@ const isLoggedIn = !!user && profile !== null;
               {!isLoggedIn && (
                 <>
                   <a
-                  <Link
+<Link
   to="/auth"
+  search={{ redirect: "transferir" }}
   className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary px-6 py-4 font-semibold text-background shadow-glow hover:scale-[1.02] transition"
 >
   <Trophy className="w-5 h-5" />
