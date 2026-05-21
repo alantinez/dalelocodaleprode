@@ -14,8 +14,8 @@ const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${WHATSAPP_MSG}`;
 export function Hero() {
   const { user, profile } = useAuth();
 
-const isPaid = profile?.paid === true;
-const isLoggedIn = !!user && profile !== null;
+  const isPaid = profile?.paid === true;
+  const isLoggedIn = !!user;
 
   return (
     <section className="relative pt-32 sm:pt-40 pb-16 sm:pb-24 overflow-hidden">
@@ -77,10 +77,12 @@ const isLoggedIn = !!user && profile !== null;
               {!isLoggedIn && (
                 <>
                   <a
-<Link to="/auth" search={{ redirect: "transferir" }} className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary px-6 py-4 font-semibold text-background shadow-glow hover:scale-[1.02] transition">
-  <Trophy className="w-5 h-5" />
-  Unirme al Prode · {formatARS(PRODE_CONFIG.entryFee)}
-</Link>
+                    href="/#transferir"
+                    className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary px-6 py-4 font-semibold text-background shadow-glow hover:scale-[1.02] transition"
+                  >
+                    <Trophy className="w-5 h-5" />
+                    Unirme al Prode · {formatARS(PRODE_CONFIG.entryFee)}
+                  </a>
                   <Link
                     to="/fixture"
                     className="inline-flex items-center justify-center gap-2 rounded-2xl glass px-6 py-4 font-semibold hover:bg-card transition"
