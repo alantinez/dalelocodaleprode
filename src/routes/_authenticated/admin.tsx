@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Loader2, Save, ShieldCheck, ShieldAlert, Crown,
-  Users, CheckCircle2, XCircle, Clock, Trophy, Search
+  Users, CheckCircle2, XCircle, Clock, Trophy, Search, Trash2
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -42,7 +42,6 @@ type Participant = {
 
 function AdminPage() {
   const { isAdmin, user, loading } = useAuth();
-  const qc = useQueryClient();
   const [tab, setTab] = useState<"resultados" | "participantes">("participantes");
 
   const claimMut = useMutation({
@@ -96,7 +95,7 @@ function AdminPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pt-28 pb-20">
+    <div className="min-h-screen bg-background pt-8 pb-20">
       <main className="mx-auto max-w-4xl px-4 sm:px-6">
         <div className="flex items-center gap-3 mb-2">
           <ShieldCheck className="w-5 h-5 text-primary" />
@@ -106,14 +105,11 @@ function AdminPage() {
           Dale Dale <span className="text-gradient-hero">Admin</span>
         </h1>
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-8">
           <button
             onClick={() => setTab("participantes")}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition ${
-              tab === "participantes"
-                ? "bg-primary text-background"
-                : "glass text-muted-foreground hover:text-foreground"
+              tab === "participantes" ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
             }`}
           >
             <Users className="w-4 h-4" /> Participantes
@@ -121,9 +117,7 @@ function AdminPage() {
           <button
             onClick={() => setTab("resultados")}
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition ${
-              tab === "resultados"
-                ? "bg-primary text-background"
-                : "glass text-muted-foreground hover:text-foreground"
+              tab === "resultados" ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
             }`}
           >
             <Trophy className="w-4 h-4" /> Resultados
@@ -140,6 +134,7 @@ function AdminParticipants() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"todos" | "pagados" | "pendientes">("todos");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const q = useQuery({
     queryKey: ["admin-participants"],
@@ -166,6 +161,24 @@ function AdminParticipants() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const deleteMut = useMutation({
+    mutationFn: async (userId: string) => {
+      const { error } = await supabase.rpc("admin_delete_participant", {
+        target_user_id: userId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Participante eliminado");
+      setDeletingId(null);
+      qc.invalidateQueries({ queryKey: ["admin-participants"] });
+    },
+    onError: (e: Error) => {
+      toast.error(e.message);
+      setDeletingId(null);
+    },
+  });
+
   const participants = q.data ?? [];
 
   const filtered = useMemo(() => {
@@ -187,7 +200,35 @@ function AdminParticipants() {
 
   return (
     <div>
-      {/* Stats rápidas */}
+      {/* Confirm delete modal */}
+      {deletingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
+          <div className="glass-strong rounded-2xl p-6 max-w-sm w-full text-center">
+            <Trash2 className="w-10 h-10 text-destructive mx-auto mb-3" />
+            <h3 className="font-display font-bold text-xl mb-2">¿Eliminar participante?</h3>
+            <p className="text-sm text-muted-foreground mb-6">
+              Se elimina su cuenta, pronósticos y datos. Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeletingId(null)}
+                className="flex-1 glass rounded-xl py-2.5 text-sm font-medium hover:bg-card transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => deleteMut.mutate(deletingId)}
+                disabled={deleteMut.isPending}
+                className="flex-1 bg-destructive text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-destructive/90 transition disabled:opacity-50"
+              >
+                {deleteMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stats */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         <div className="glass rounded-2xl p-4 text-center">
           <div className="font-display font-bold text-3xl text-foreground">{participants.length}</div>
@@ -220,9 +261,7 @@ function AdminParticipants() {
               key={f}
               onClick={() => setFilter(f)}
               className={`px-3 py-2 rounded-xl text-xs font-medium capitalize transition ${
-                filter === f
-                  ? "bg-primary text-background"
-                  : "glass text-muted-foreground hover:text-foreground"
+                filter === f ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
               }`}
             >
               {f}
@@ -238,18 +277,14 @@ function AdminParticipants() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="glass-strong rounded-2xl p-12 text-center text-muted-foreground">
-          {participants.length === 0
-            ? "Todavía no hay participantes registrados."
-            : "No hay resultados para ese filtro."}
+          {participants.length === 0 ? "Todavía no hay participantes registrados." : "No hay resultados para ese filtro."}
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map((p) => (
             <div
               key={p.id}
-              className={`glass-strong rounded-2xl p-4 flex items-center gap-4 ${
-                p.paid ? "ring-1 ring-secondary/30" : ""
-              }`}
+              className={`glass-strong rounded-2xl p-4 flex items-center gap-3 ${p.paid ? "ring-1 ring-secondary/30" : ""}`}
             >
               {/* Avatar */}
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center overflow-hidden flex-shrink-0">
@@ -267,7 +302,7 @@ function AdminParticipants() {
                 {p.paid && p.paid_at && (
                   <div className="text-[10px] text-secondary mt-0.5 flex items-center gap-1">
                     <Clock className="w-3 h-3" />
-                    Confirmado {new Date(p.paid_at).toLocaleDateString("es-AR")}
+                    {new Date(p.paid_at).toLocaleDateString("es-AR")}
                   </div>
                 )}
               </div>
@@ -282,17 +317,26 @@ function AdminParticipants() {
               <button
                 onClick={() => setPaidMut.mutate({ userId: p.id, paid: !p.paid })}
                 disabled={setPaidMut.isPending}
-                className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition active:scale-95 flex-shrink-0 ${
+                title={p.paid ? "Marcar como pendiente" : "Confirmar pago"}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition active:scale-95 flex-shrink-0 ${
                   p.paid
                     ? "bg-secondary/20 text-secondary hover:bg-destructive/20 hover:text-destructive"
                     : "bg-primary/20 text-primary hover:bg-secondary/20 hover:text-secondary"
                 }`}
               >
-                {p.paid ? (
-                  <><CheckCircle2 className="w-4 h-4" /> <span className="hidden sm:inline">Pagó</span></>
-                ) : (
-                  <><XCircle className="w-4 h-4" /> <span className="hidden sm:inline">Pendiente</span></>
-                )}
+                {p.paid
+                  ? <><CheckCircle2 className="w-4 h-4" /><span className="hidden sm:inline">Pagó</span></>
+                  : <><XCircle className="w-4 h-4" /><span className="hidden sm:inline">Pendiente</span></>
+                }
+              </button>
+
+              {/* Eliminar */}
+              <button
+                onClick={() => setDeletingId(p.id)}
+                title="Eliminar participante"
+                className="w-9 h-9 flex items-center justify-center rounded-xl glass hover:bg-destructive/20 hover:text-destructive transition flex-shrink-0"
+              >
+                <Trash2 className="w-4 h-4" />
               </button>
             </div>
           ))}
@@ -359,9 +403,7 @@ function AdminMatches() {
             key={f}
             onClick={() => setFilter(f)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium uppercase tracking-wider transition ${
-              filter === f
-                ? "bg-primary text-background"
-                : "glass text-muted-foreground hover:text-foreground"
+              filter === f ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
             }`}
           >
             {f}
@@ -388,9 +430,7 @@ function AdminMatches() {
   );
 }
 
-function AdminMatchRow({
-  match, onSave, saving,
-}: {
+function AdminMatchRow({ match, onSave, saving }: {
   match: AdminMatch;
   onSave: (home: number, away: number) => void;
   saving: boolean;
@@ -414,25 +454,13 @@ function AdminMatchRow({
           {match.home?.flag_url && <img src={match.home.flag_url} alt="" className="w-6 h-6 rounded shrink-0" />}
         </div>
         <div className="flex items-center gap-1.5">
-          <Input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={20}
-            value={home}
+          <Input type="number" inputMode="numeric" min={0} max={20} value={home}
             onChange={(e) => setHome(e.target.value)}
-            className="w-14 h-12 text-center font-display text-2xl font-bold"
-          />
+            className="w-14 h-12 text-center font-display text-2xl font-bold" />
           <span className="text-muted-foreground">·</span>
-          <Input
-            type="number"
-            inputMode="numeric"
-            min={0}
-            max={20}
-            value={away}
+          <Input type="number" inputMode="numeric" min={0} max={20} value={away}
             onChange={(e) => setAway(e.target.value)}
-            className="w-14 h-12 text-center font-display text-2xl font-bold"
-          />
+            className="w-14 h-12 text-center font-display text-2xl font-bold" />
         </div>
         <div className="flex items-center gap-2 min-w-0">
           {match.away?.flag_url && <img src={match.away.flag_url} alt="" className="w-6 h-6 rounded shrink-0" />}
@@ -440,25 +468,13 @@ function AdminMatchRow({
         </div>
       </div>
       <div className="mt-3 flex justify-end">
-        <Button
-          size="sm"
-          onClick={() => {
-            const h = parseInt(home, 10);
-            const a = parseInt(away, 10);
-            if (isNaN(h) || isNaN(a) || h < 0 || a < 0) {
-              toast.error("Ingresá goles válidos");
-              return;
-            }
-            onSave(h, a);
-          }}
-          disabled={saving}
-          className="bg-gradient-to-r from-primary to-secondary text-background font-semibold"
-        >
-          {saving ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <><Save className="w-3.5 h-3.5 mr-1.5" /> {isFinished ? "Actualizar" : "Guardar final"}</>
-          )}
+        <Button size="sm" onClick={() => {
+          const h = parseInt(home, 10);
+          const a = parseInt(away, 10);
+          if (isNaN(h) || isNaN(a) || h < 0 || a < 0) { toast.error("Ingresá goles válidos"); return; }
+          onSave(h, a);
+        }} disabled={saving} className="bg-gradient-to-r from-primary to-secondary text-background font-semibold">
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-3.5 h-3.5 mr-1.5" />{isFinished ? "Actualizar" : "Guardar final"}</>}
         </Button>
       </div>
     </div>
