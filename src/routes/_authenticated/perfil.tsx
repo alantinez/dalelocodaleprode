@@ -8,30 +8,30 @@ import { useAuth } from "@/hooks/use-auth";
 import { AchievementsGrid } from "@/components/achievements/AchievementsGrid";
 import foto8 from "@/assets/foto8.jpg";
 import { ChampionPicker } from "@/components/fixture/ChampionPicker";
-
+ 
 export const Route = createFileRoute("/_authenticated/perfil")({
   component: PerfilPage,
   head: () => ({
-    meta: [{ title: "Mi perfil · PRODE Mundial 2026" }],
+    meta: [{ title: "Mi perfil · Dale Dale" }],
   }),
 });
-
+ 
 function PerfilPage() {
   const { user, profile, refreshProfile, signOut } = useAuth();
   const [name, setName] = useState(profile?.display_name ?? "");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
-
+ 
   if (!user || !profile) return null;
-
+ 
   const initials = profile.display_name
     .split(" ")
     .map((s) => s[0])
     .slice(0, 2)
     .join("")
     .toUpperCase();
-
+ 
   const handleAvatar = async (file: File) => {
     setUploading(true);
     try {
@@ -55,7 +55,7 @@ function PerfilPage() {
       setUploading(false);
     }
   };
-
+ 
   const handleSave = async () => {
     if (!name.trim()) return;
     setSaving(true);
@@ -71,36 +71,28 @@ function PerfilPage() {
     }
     setSaving(false);
   };
-
+ 
   const stats = [
     { icon: Trophy, label: "Puntos totales", value: profile.total_points, color: "text-gradient-gold" },
     { icon: Target, label: "Exactos", value: profile.exact_hits, color: "text-primary" },
     { icon: Flame, label: "Racha actual", value: profile.current_streak, color: "text-secondary" },
   ];
-
+ 
   return (
     <div className="mx-auto max-w-4xl px-4 sm:px-6">
+      {/* Card principal */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="glass-strong rounded-3xl p-6 sm:p-10 relative overflow-hidden"
       >
-<div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
-<div className="absolute top-4 right-4 w-20 pointer-events-none select-none hidden sm:block z-10">
-  <div className="rounded-xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-3">
-    <img src={foto8} alt="" className="w-full h-auto" />
-  </div>
-</div>
-
+        <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+ 
         <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-6">
           <div className="relative group">
             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden shadow-glow">
               {profile.avatar_url ? (
-                <img
-                  src={profile.avatar_url}
-                  alt={profile.display_name}
-                  className="w-full h-full object-cover"
-                />
+                <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
               ) : (
                 <span className="font-display font-bold text-3xl text-background">{initials}</span>
               )}
@@ -120,13 +112,13 @@ function PerfilPage() {
               onChange={(e) => e.target.files?.[0] && handleAvatar(e.target.files[0])}
             />
           </div>
-
+ 
           <div className="flex-1 w-full">
             <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Tu perfil</p>
             <h1 className="font-display font-bold text-3xl sm:text-4xl mt-1">{profile.display_name}</h1>
             <p className="text-sm text-muted-foreground mt-1">{user.email}</p>
           </div>
-
+ 
           <button
             onClick={async () => { await signOut(); toast.success("Sesión cerrada"); }}
             className="inline-flex items-center gap-2 glass rounded-xl px-4 py-2 text-sm font-medium hover:bg-destructive/20 hover:text-destructive transition"
@@ -135,22 +127,36 @@ function PerfilPage() {
             Salir
           </button>
         </div>
-
+ 
         <div className="grid grid-cols-3 gap-3 sm:gap-4 mt-8">
           {stats.map((s) => (
             <div key={s.label} className="glass rounded-xl p-4 sm:p-5 text-center">
               <s.icon className={`w-5 h-5 mx-auto ${s.color}`} />
-              <div className={`font-display font-bold text-2xl sm:text-3xl mt-2 ${s.color}`}>
-                {s.value}
-              </div>
-              <div className="text-[10px] sm:text-xs uppercase tracking-widest text-muted-foreground mt-1">
-                {s.label}
-              </div>
+              <div className={`font-display font-bold text-2xl sm:text-3xl mt-2 ${s.color}`}>{s.value}</div>
+              <div className="text-[10px] sm:text-xs uppercase tracking-widest text-muted-foreground mt-1">{s.label}</div>
             </div>
           ))}
         </div>
       </motion.div>
-
+ 
+      {/* Foto entre secciones */}
+      <div className="hidden sm:flex justify-end pr-2 mt-3 mb-1 pointer-events-none select-none">
+        <div className="w-36 rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-2">
+          <img src={foto8} alt="" className="w-full h-auto" />
+        </div>
+      </div>
+ 
+      {/* Mi campeón */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.05 }}
+        className="mt-3"
+      >
+        <ChampionPicker />
+      </motion.div>
+ 
+      {/* Datos del perfil */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -179,7 +185,8 @@ function PerfilPage() {
           </button>
         </div>
       </motion.div>
-
+ 
+      {/* Logros */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
