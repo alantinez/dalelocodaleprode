@@ -9,6 +9,8 @@ import { dayKey } from "@/lib/prode/scoring";
 
 import foto5 from "@/assets/foto5.jpg";
 import foto6 from "@/assets/foto6.jpg";
+import { ChampionPicker } from "@/components/fixture/ChampionPicker";
+
 
 export const Route = createFileRoute("/_authenticated/fixture")({
   component: FixturePage,
@@ -118,7 +120,7 @@ function FixturePage() {
           <span className="text-muted-foreground">/ {totalMatches} pronosticados</span>
         </div>
       </header>
-
+<ChampionPicker />
       {/* Filtros */}
       <div className="sticky top-24 z-30 mb-6">
         <div className="glass-strong rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center gap-3">
