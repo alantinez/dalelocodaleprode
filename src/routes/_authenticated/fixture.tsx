@@ -1,21 +1,30 @@
 import { useMemo, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CalendarDays, Filter } from "lucide-react";
+import { Loader2, CalendarDays, Filter, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { MatchCard, type MatchWithTeams, type Prediction } from "@/components/fixture/MatchCard";
 import { dayKey } from "@/lib/prode/scoring";
+
+import foto5 from "@/assets/foto5.jpg";
+import foto6 from "@/assets/foto6.jpg";
 
 export const Route = createFileRoute("/_authenticated/fixture")({
   component: FixturePage,
 });
 
 const GROUPS = ["TODOS", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"] as const;
+const PAGE_SIZE = 8;
+
+// Fotos que aparecen entre secciones de días
+const SECTION_PHOTOS = [foto5, foto6];
+
 function FixturePage() {
   const { user } = useAuth();
   const [group, setGroup] = useState<(typeof GROUPS)[number]>("TODOS");
   const [onlyPending, setOnlyPending] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const matchesQ = useQuery({
     queryKey: ["matches"],
@@ -65,15 +74,28 @@ function FixturePage() {
     });
   }, [matchesQ.data, group, onlyPending, predByMatch]);
 
+  // Reset visible count when filter changes
+  const handleGroupChange = (g: typeof GROUPS[number]) => {
+    setGroup(g);
+    setVisibleCount(PAGE_SIZE);
+  };
+  const handlePendingChange = (v: boolean) => {
+    setOnlyPending(v);
+    setVisibleCount(PAGE_SIZE);
+  };
+
+  const visible = filtered.slice(0, visibleCount);
+  const hasMore = filtered.length > visibleCount;
+
   const grouped = useMemo(() => {
     const map = new Map<string, MatchWithTeams[]>();
-    for (const m of filtered) {
+    for (const m of visible) {
       const key = dayKey(new Date(m.kickoff));
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(m);
     }
     return Array.from(map.entries());
-  }, [filtered]);
+  }, [visible]);
 
   const totalPreds = predsQ.data?.length ?? 0;
   const totalMatches = matchesQ.data?.length ?? 0;
@@ -97,6 +119,7 @@ function FixturePage() {
         </div>
       </header>
 
+      {/* Filtros */}
       <div className="sticky top-24 z-30 mb-6">
         <div className="glass-strong rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center gap-3">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -106,7 +129,7 @@ function FixturePage() {
             {GROUPS.map((g) => (
               <button
                 key={g}
-                onClick={() => setGroup(g)}
+                onClick={() => handleGroupChange(g)}
                 className={`px-3 py-1 rounded-lg text-xs font-mono font-bold transition ${
                   group === g
                     ? "bg-gradient-to-r from-primary to-secondary text-background shadow-glow"
@@ -121,7 +144,7 @@ function FixturePage() {
             <input
               type="checkbox"
               checked={onlyPending}
-              onChange={(e) => setOnlyPending(e.target.checked)}
+              onChange={(e) => handlePendingChange(e.target.checked)}
               className="accent-primary"
             />
             Solo pendientes
@@ -138,20 +161,59 @@ function FixturePage() {
           No hay partidos con ese filtro.
         </div>
       ) : (
-        <div className="space-y-8">
-          {grouped.map(([day, list]) => (
-            <section key={day}>
-              <h2 className="font-display font-semibold text-sm uppercase tracking-widest text-muted-foreground mb-3 sticky top-44 sm:top-40 z-10">
-                <span className="glass px-3 py-1 rounded-lg">{day}</span>
-              </h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {list.map((m) => (
-                  <MatchCard key={m.id} match={m} prediction={predByMatch.get(m.id) ?? null} />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
+        <>
+          <div className="space-y-8">
+            {grouped.map(([day, list], idx) => (
+              <>
+                <section key={day}>
+                  <h2 className="font-display font-semibold text-sm uppercase tracking-widest text-muted-foreground mb-3 sticky top-44 sm:top-40 z-10">
+                    <span className="glass px-3 py-1 rounded-lg">{day}</span>
+                  </h2>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {list.map((m) => (
+                      <MatchCard key={m.id} match={m} prediction={predByMatch.get(m.id) ?? null} />
+                    ))}
+                  </div>
+                </section>
+
+                {/* Foto intercalada cada 2 días */}
+                {idx % 2 === 1 && idx < grouped.length - 1 && (
+                  <div key={`photo-${idx}`} className="flex justify-center py-2">
+                    <div className="w-48 sm:w-56 rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-1 hover:rotate-0 transition-transform duration-300">
+                      <img
+                        src={SECTION_PHOTOS[Math.floor(idx / 2) % SECTION_PHOTOS.length]}
+                        alt=""
+                        className="w-full h-auto"
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
+            ))}
+          </div>
+
+          {/* Ver más */}
+          {hasMore && (
+            <div className="flex flex-col items-center gap-2 mt-10 mb-4">
+              <p className="text-xs text-muted-foreground font-mono">
+                Mostrando {visible.length} de {filtered.length} partidos
+              </p>
+              <button
+                onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}
+                className="inline-flex items-center gap-2 glass-strong rounded-2xl px-6 py-3 text-sm font-semibold hover:bg-card transition active:scale-95 touch-manipulation"
+              >
+                <ChevronDown className="w-4 h-4" />
+                Ver más partidos
+              </button>
+            </div>
+          )}
+
+          {!hasMore && filtered.length > PAGE_SIZE && (
+            <div className="text-center mt-8 text-xs text-muted-foreground font-mono">
+              ✅ Todos los partidos cargados ({filtered.length})
+            </div>
+          )}
+        </>
       )}
     </div>
   );
