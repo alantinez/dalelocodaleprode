@@ -87,7 +87,8 @@ export function MatchCard({
   match: MatchWithTeams;
   prediction: Prediction | null;
 }) {
-  const { user } = useAuth();
+const { user, profile } = useAuth();
+const canPredict = profile?.paid ?? false;
   const queryClient = useQueryClient();
   const kickoff = new Date(match.kickoff);
   const [locked, setLocked] = useState(() => Date.now() >= kickoff.getTime());
