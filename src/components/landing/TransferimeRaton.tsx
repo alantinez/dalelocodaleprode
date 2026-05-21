@@ -1,186 +1,131 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
-import { motion } from "motion/react";
-import { Camera, LogOut, Trophy, Target, Flame, Loader2, Save } from "lucide-react";
+import { useState } from "react";
+import { Copy, Check, Banknote, Sparkles, Users } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
-import { AchievementsGrid } from "@/components/achievements/AchievementsGrid";
-import foto8 from "@/assets/foto8.jpg";
+import mascota from "@/assets/mascota-prode.png";
+import amigos from "@/assets/amigos.jpg";
+import foto2 from "@/assets/foto2.jpeg";
+import { PRODE_CONFIG, formatARS } from "@/lib/prode/config";
 
-export const Route = createFileRoute("/_authenticated/perfil")({
-  component: PerfilPage,
-  head: () => ({
-    meta: [{ title: "Mi perfil · Dale Dale" }],
-  }),
-});
+const CVU = "0000003100091909835217";
+const ALIAS = "alan.eze.martinez";
 
-function PerfilPage() {
-  const { user, profile, refreshProfile, signOut } = useAuth();
-  const [name, setName] = useState(profile?.display_name ?? "");
-  const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  if (!user || !profile) return null;
-
-  const initials = profile.display_name
-    .split(" ")
-    .map((s) => s[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
-
-  const handleAvatar = async (file: File) => {
-    setUploading(true);
-    try {
-      const ext = file.name.split(".").pop() ?? "jpg";
-      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
-      if (upErr) throw upErr;
-      const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
-      const { error: profErr } = await supabase
-        .from("profiles")
-        .update({ avatar_url: publicUrl })
-        .eq("id", user.id);
-      if (profErr) throw profErr;
-      await refreshProfile();
-      toast.success("Avatar actualizado");
-    } catch (err) {
-      toast.error("No se pudo subir el avatar", {
-        description: err instanceof Error ? err.message : undefined,
-      });
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!name.trim()) return;
-    setSaving(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ display_name: name.trim() })
-      .eq("id", user.id);
-    if (error) {
-      toast.error("No se pudo guardar");
-    } else {
-      await refreshProfile();
-      toast.success("Perfil actualizado");
-    }
-    setSaving(false);
-  };
-
-  const stats = [
-    { icon: Trophy, label: "Puntos totales", value: profile.total_points, color: "text-gradient-gold" },
-    { icon: Target, label: "Exactos", value: profile.exact_hits, color: "text-primary" },
-    { icon: Flame, label: "Racha actual", value: profile.current_streak, color: "text-secondary" },
-  ];
-
+function CopyButton({ label, value }: { label: string; value: string }) {
+  const [done, setDone] = useState(false);
   return (
-    <div className="mx-auto max-w-4xl px-4 sm:px-6">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="glass-strong rounded-3xl p-6 sm:p-10 relative overflow-hidden"
-      >
-        <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(value);
+          setDone(true);
+          toast.success(`${label} copiado`);
+          setTimeout(() => setDone(false), 1800);
+        } catch {
+          toast.error("No se pudo copiar");
+        }
+      }}
+      className="inline-flex items-center gap-1.5 rounded-lg glass hover:bg-card px-3 py-1.5 text-xs font-mono font-semibold transition active:scale-95"
+    >
+      {done ? <Check className="w-3.5 h-3.5 text-secondary" /> : <Copy className="w-3.5 h-3.5" />}
+      Copiar {label}
+    </button>
+  );
+}
 
-        <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-6">
-          <div className="relative group">
-            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden shadow-glow">
-              {profile.avatar_url ? (
-                <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
-              ) : (
-                <span className="font-display font-bold text-3xl text-background">{initials}</span>
-              )}
-            </div>
-            <button
-              onClick={() => fileRef.current?.click()}
-              disabled={uploading}
-              className="absolute inset-0 rounded-2xl bg-background/70 backdrop-blur opacity-0 group-hover:opacity-100 transition flex items-center justify-center"
-            >
-              {uploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Camera className="w-6 h-6" />}
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && handleAvatar(e.target.files[0])}
-            />
+export function TransferimeRaton() {
+  return (
+    <section id="transferir" className="relative py-20 sm:py-28 overflow-hidden">
+      <div className="absolute inset-0 -z-10 bg-gradient-to-b from-transparent via-primary/5 to-transparent" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -z-10 w-[600px] h-[600px] rounded-full bg-gold/10 blur-3xl" />
+
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 glass rounded-full px-3 py-1 text-xs font-mono uppercase tracking-widest text-gold">
+            <Sparkles className="w-3 h-3" /> Inscripción oficial
           </div>
-
-          <div className="flex-1 w-full">
-            <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Tu perfil</p>
-            <h1 className="font-display font-bold text-3xl sm:text-4xl mt-1">{profile.display_name}</h1>
-            <p className="text-sm text-muted-foreground mt-1">{user.email}</p>
-          </div>
-
-          <button
-            onClick={async () => { await signOut(); toast.success("Sesión cerrada"); }}
-            className="inline-flex items-center gap-2 glass rounded-xl px-4 py-2 text-sm font-medium hover:bg-destructive/20 hover:text-destructive transition"
-          >
-            <LogOut className="w-4 h-4" />
-            Salir
-          </button>
+          <h2 className="font-display font-black text-4xl sm:text-6xl mt-3 text-gradient-gold">
+            💸 Transferime, ratón
+          </h2>
+          <p className="mt-3 text-muted-foreground max-w-xl mx-auto">
+            Si querés entrar al prode soltá la biyuya y dejá de especular. Inscripción{" "}
+            <span className="text-gold font-bold">{formatARS(PRODE_CONFIG.entryFee)}</span>. El que paga, juega.
+          </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-3 sm:gap-4 mt-8">
-          {stats.map((s) => (
-            <div key={s.label} className="glass rounded-xl p-4 sm:p-5 text-center">
-              <s.icon className={`w-5 h-5 mx-auto ${s.color}`} />
-              <div className={`font-display font-bold text-2xl sm:text-3xl mt-2 ${s.color}`}>{s.value}</div>
-              <div className="text-[10px] sm:text-xs uppercase tracking-widest text-muted-foreground mt-1">{s.label}</div>
-            </div>
-          ))}
-        </div>
-      </motion.div>
+        <div className="grid lg:grid-cols-[1.1fr_1fr] gap-6 items-stretch">
+          {/* Card pago */}
+          <div className="glass-strong rounded-3xl p-6 sm:p-8 relative overflow-hidden group">
+            <div className="absolute -top-px inset-x-0 h-px bg-gradient-to-r from-transparent via-gold/60 to-transparent" />
+            <div className="absolute -inset-px rounded-3xl bg-gradient-to-br from-gold/20 via-transparent to-primary/20 opacity-0 group-hover:opacity-100 transition pointer-events-none" />
 
-      {/* Foto entre secciones */}
-      <div className="hidden sm:flex justify-end pr-2 mt-3 mb-1 pointer-events-none select-none">
-        <div className="w-36 rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-2">
-          <img src={foto8} alt="" className="w-full h-auto" />
+            <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-muted-foreground">
+              <Banknote className="w-4 h-4 text-gold" /> Datos para transferir
+            </div>
+
+            <div className="mt-6 space-y-5">
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">Alias</div>
+                <div className="flex items-center justify-between gap-3 glass rounded-xl px-4 py-3">
+                  <span className="font-mono font-bold text-base sm:text-lg text-gradient-gold break-all">{ALIAS}</span>
+                  <CopyButton label="alias" value={ALIAS} />
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mb-1">CVU</div>
+                <div className="flex items-center justify-between gap-3 glass rounded-xl px-4 py-3">
+                  <span className="font-mono text-sm sm:text-base break-all">{CVU}</span>
+                  <CopyButton label="CVU" value={CVU} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="glass rounded-xl px-4 py-3">
+                  <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Titular</div>
+                  <div className="font-display font-semibold mt-0.5">Alan Martínez</div>
+                </div>
+                <div className="glass rounded-xl px-4 py-3">
+                  <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Monto</div>
+                  <div className="font-display font-bold mt-0.5 text-gold">{formatARS(PRODE_CONFIG.entryFee)}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 text-[11px] text-muted-foreground border-t border-border/40 pt-4">
+              Después de transferir avisale a Alan por WhatsApp con captura. Sin pago no entrás al pozo.
+            </div>
+          </div>
+
+          {/* Foto del grupo + stickers */}
+          <div className="relative">
+            <div className="glass-strong rounded-3xl overflow-hidden h-full min-h-[300px] relative group">
+              <img src={amigos} alt="El grupo del prode" className="w-full h-full object-cover object-center" />
+              <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
+              <div className="absolute bottom-0 inset-x-0 p-6 text-center">
+                <div className="inline-flex items-center gap-2 glass rounded-full px-3 py-1.5 text-xs font-mono uppercase tracking-widest text-gold mb-2">
+                  <Users className="w-3 h-3" /> El grupo
+                </div>
+                <p className="font-display font-bold text-lg text-white drop-shadow">
+                  {PRODE_CONFIG.participants} cracks, un solo campeón 🏆
+                </p>
+              </div>
+            </div>
+
+            {/* Mascota sticker - abajo derecha */}
+            <div className="hidden sm:block absolute -bottom-6 -right-6 lg:-bottom-8 lg:-right-8 w-32 lg:w-40 pointer-events-none select-none animate-float">
+              <div className="absolute inset-0 -z-10 bg-gold/30 blur-2xl rounded-full" />
+              <div className="relative rounded-2xl overflow-hidden border-4 border-gold shadow-glow rotate-6 hover:rotate-0 transition pointer-events-auto">
+                <img src={mascota} alt="Mascota del Prode" className="w-full h-auto" />
+              </div>
+            </div>
+
+            {/* foto2 sticker - arriba izquierda */}
+            <div className="hidden sm:block absolute -top-6 -left-6 w-32 lg:w-36 pointer-events-none select-none">
+              <div className="rounded-2xl overflow-hidden border-2 border-primary/40 shadow-glow -rotate-6 hover:rotate-0 transition">
+                <img src={foto2} alt="" className="w-full h-auto" />
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="glass-strong rounded-3xl p-6 sm:p-8 mt-3"
-      >
-        <h2 className="font-display font-semibold text-lg mb-4">Datos del perfil</h2>
-        <div className="space-y-3">
-          <div>
-            <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
-              Nombre a mostrar
-            </label>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-1.5 w-full px-4 py-3 rounded-xl bg-input border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
-            />
-          </div>
-          <button
-            onClick={handleSave}
-            disabled={saving || name.trim() === profile.display_name}
-            className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary py-2.5 px-5 font-semibold text-background shadow-glow hover:scale-[1.01] transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-            Guardar cambios
-          </button>
-        </div>
-      </motion.div>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="glass-strong rounded-3xl p-6 sm:p-8 mt-6"
-      >
-        <AchievementsGrid userId={user.id} />
-      </motion.div>
-    </div>
+    </section>
   );
 }
