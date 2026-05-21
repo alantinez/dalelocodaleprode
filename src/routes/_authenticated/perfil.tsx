@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { AchievementsGrid } from "@/components/achievements/AchievementsGrid";
 import foto8 from "@/assets/foto8.jpg";
+import { ChampionPicker } from "@/components/fixture/ChampionPicker";
 
 export const Route = createFileRoute("/_authenticated/perfil")({
   component: PerfilPage,
