@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/landing/Navbar";
 import { useAuth } from "@/hooks/use-auth";
 import mascota3 from "@/assets/mascota3.jpg.jpeg";
+import foto4 from "@/assets/foto4.jpg";
 
 export const Route = createFileRoute("/stats")({
   component: StatsPage,
@@ -161,12 +162,12 @@ function computeStats(preds: PredRow[]) {
 }
 
 function StatsPage() {
-  const mascotaEl = (
-    <div className="fixed bottom-6 right-6 w-20 sm:w-24 pointer-events-none select-none z-10">
-      <div className="rounded-xl overflow-hidden border-2 border-secondary shadow-glow -rotate-6 opacity-80">
-        <img src={mascota3} alt="" className="w-full h-auto" />
-      </div>
-    </div>
+{mascotaEl}
+<div className="fixed bottom-6 left-6 w-20 sm:w-24 pointer-events-none select-none z-10 hidden sm:block">
+  <div className="rounded-xl overflow-hidden border-2 border-gold/30 shadow-glow -rotate-3">
+    <img src={foto4} alt="" className="w-full h-auto" />
+  </div>
+</div>
   );  const { user } = useAuth();
 
   const playersQ = useQuery({
