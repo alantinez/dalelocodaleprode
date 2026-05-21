@@ -11,11 +11,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { formatKickoff } from "@/lib/prode/scoring";
-
+ 
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminPage,
 });
-
+ 
 type AdminMatch = {
   id: string;
   kickoff: string;
@@ -27,7 +27,7 @@ type AdminMatch = {
   home: { name: string; code: string; flag_url: string | null } | null;
   away: { name: string; code: string; flag_url: string | null } | null;
 };
-
+ 
 type Participant = {
   id: string;
   display_name: string;
@@ -39,11 +39,11 @@ type Participant = {
   email: string;
   created_at: string;
 };
-
+ 
 function AdminPage() {
   const { isAdmin, user, loading } = useAuth();
-  const [tab, setTab] = useState<"resultados" | "participantes">("participantes");
-
+  const [tab, setTab] = useState<"participantes" | "resultados" | "campeon">("participantes");
+ 
   const claimMut = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.rpc("claim_admin_if_empty");
@@ -51,49 +51,30 @@ function AdminPage() {
       return data as boolean;
     },
     onSuccess: (claimed) => {
-      if (claimed) {
-        toast.success("¡Sos admin! Recargá la página.");
-        setTimeout(() => window.location.reload(), 800);
-      } else {
-        toast.error("Ya existe un admin. Pedile que te asigne el rol.");
-      }
+      if (claimed) { toast.success("¡Sos admin! Recargá la página."); setTimeout(() => window.location.reload(), 800); }
+      else toast.error("Ya existe un admin.");
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
+ 
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+ 
   if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="glass-strong rounded-2xl p-8 max-w-md w-full text-center">
           <ShieldAlert className="w-12 h-12 text-gold mx-auto mb-4" />
           <h2 className="font-display text-2xl font-bold mb-2">Acceso restringido</h2>
-          <p className="text-sm text-muted-foreground mb-6">
-            Esta sección es solo para administradores.
-          </p>
-          <Button
-            onClick={() => claimMut.mutate()}
-            disabled={claimMut.isPending || !user}
-            className="w-full bg-gradient-to-r from-primary to-secondary text-background font-semibold"
-          >
-            {claimMut.isPending ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <><Crown className="w-4 h-4 mr-2" /> Reclamar admin</>
-            )}
+          <p className="text-sm text-muted-foreground mb-6">Esta sección es solo para administradores.</p>
+          <Button onClick={() => claimMut.mutate()} disabled={claimMut.isPending || !user}
+            className="w-full bg-gradient-to-r from-primary to-secondary text-background font-semibold">
+            {claimMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Crown className="w-4 h-4 mr-2" /> Reclamar admin</>}
           </Button>
         </div>
       </div>
     );
   }
-
+ 
   return (
     <div className="min-h-screen bg-background pt-8 pb-20">
       <main className="mx-auto max-w-4xl px-4 sm:px-6">
@@ -104,38 +85,109 @@ function AdminPage() {
         <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight mb-6">
           Dale Dale <span className="text-gradient-hero">Admin</span>
         </h1>
-
-        <div className="flex gap-2 mb-8">
-          <button
-            onClick={() => setTab("participantes")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition ${
-              tab === "participantes" ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Users className="w-4 h-4" /> Participantes
-          </button>
-          <button
-            onClick={() => setTab("resultados")}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition ${
-              tab === "resultados" ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Trophy className="w-4 h-4" /> Resultados
-          </button>
+ 
+        <div className="flex gap-2 mb-8 flex-wrap">
+          {([
+            { key: "participantes", label: "Participantes", icon: <Users className="w-4 h-4" /> },
+            { key: "resultados", label: "Resultados", icon: <Save className="w-4 h-4" /> },
+            { key: "campeon", label: "🏆 Campeón", icon: null },
+          ] as const).map((t) => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition ${
+                tab === t.key ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
+              }`}>
+              {t.icon} {t.label}
+            </button>
+          ))}
         </div>
-
-        {tab === "participantes" ? <AdminParticipants /> : <AdminMatches />}
+ 
+        {tab === "participantes" && <AdminParticipants />}
+        {tab === "resultados" && <AdminMatches />}
+        {tab === "campeon" && <AdminChampion />}
       </main>
     </div>
   );
 }
-
+ 
+function AdminChampion() {
+  const qc = useQueryClient();
+  const [search, setSearch] = useState("");
+ 
+  const teamsQ = useQuery({
+    queryKey: ["teams-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("teams").select("id, name, code, flag_url, group").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+ 
+  const setChampMut = useMutation({
+    mutationFn: async (teamId: string) => {
+      const { error } = await supabase.rpc("admin_set_champion", { winning_team_id: teamId });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("¡Campeón declarado! 10 pts otorgados a los ganadores ✅");
+      qc.invalidateQueries();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+ 
+  const teams = ((teamsQ.data ?? []) as any[]).filter((t) =>
+    search === "" || t.name.toLowerCase().includes(search.toLowerCase()) || t.code.toLowerCase().includes(search.toLowerCase())
+  );
+ 
+  return (
+    <div>
+      <div className="glass-strong rounded-2xl p-5 mb-6 border border-gold/30">
+        <h3 className="font-display font-bold text-xl text-gold mb-1">🏆 Declarar campeón del Mundial</h3>
+        <p className="text-sm text-muted-foreground mb-5">
+          Usá esto cuando termine el torneo. Al confirmar, se otorgan <b>10 puntos</b> automáticamente a todos los que eligieron este equipo.
+          <br />
+          <span className="text-destructive font-semibold">⚠️ Esta acción no se puede deshacer.</span>
+        </p>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar equipo..."
+          className="w-full glass rounded-xl px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-gold/40"
+        />
+        {teamsQ.isLoading ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1">
+            {teams.map((t: any) => (
+              <button
+                key={t.id}
+                onClick={() => {
+                  if (confirm(`¿Declarar a ${t.name} como CAMPEÓN del Mundial?\n\nEsto otorgará 10 pts a todos los que lo eligieron. No se puede deshacer.`)) {
+                    setChampMut.mutate(t.id);
+                  }
+                }}
+                disabled={setChampMut.isPending}
+                className="flex items-center gap-2.5 glass rounded-xl px-3 py-2.5 hover:bg-card hover:ring-1 hover:ring-gold/50 transition active:scale-95 text-left"
+              >
+                {t.flag_url && <img src={t.flag_url} alt="" className="w-7 h-7 rounded-md object-cover flex-shrink-0" />}
+                <div className="min-w-0">
+                  <div className="text-sm font-medium truncate">{t.name}</div>
+                  <div className="text-[10px] font-mono text-muted-foreground">Grupo {t.group}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+ 
 function AdminParticipants() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"todos" | "pagados" | "pendientes">("todos");
   const [deletingId, setDeletingId] = useState<string | null>(null);
-
+ 
   const q = useQuery({
     queryKey: ["admin-participants"],
     queryFn: async () => {
@@ -145,13 +197,10 @@ function AdminParticipants() {
     },
     refetchInterval: 30_000,
   });
-
+ 
   const setPaidMut = useMutation({
     mutationFn: async ({ userId, paid }: { userId: string; paid: boolean }) => {
-      const { error } = await supabase.rpc("admin_set_paid", {
-        target_user_id: userId,
-        is_paid: paid,
-      });
+      const { error } = await supabase.rpc("admin_set_paid", { target_user_id: userId, is_paid: paid });
       if (error) throw error;
     },
     onSuccess: (_, vars) => {
@@ -160,12 +209,10 @@ function AdminParticipants() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
+ 
   const deleteMut = useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase.rpc("admin_delete_participant", {
-        target_user_id: userId,
-      });
+      const { error } = await supabase.rpc("admin_delete_participant", { target_user_id: userId });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -173,65 +220,41 @@ function AdminParticipants() {
       setDeletingId(null);
       qc.invalidateQueries({ queryKey: ["admin-participants"] });
     },
-    onError: (e: Error) => {
-      toast.error(e.message);
-      setDeletingId(null);
-    },
+    onError: (e: Error) => { toast.error(e.message); setDeletingId(null); },
   });
-
+ 
   const participants = q.data ?? [];
-
-  const filtered = useMemo(() => {
-    return participants.filter((p) => {
-      const matchesSearch =
-        search === "" ||
-        p.display_name.toLowerCase().includes(search.toLowerCase()) ||
-        p.email.toLowerCase().includes(search.toLowerCase());
-      const matchesFilter =
-        filter === "todos" ||
-        (filter === "pagados" && p.paid) ||
-        (filter === "pendientes" && !p.paid);
-      return matchesSearch && matchesFilter;
-    });
-  }, [participants, search, filter]);
-
+  const filtered = useMemo(() => participants.filter((p) => {
+    const matchesSearch = search === "" || p.display_name.toLowerCase().includes(search.toLowerCase()) || p.email.toLowerCase().includes(search.toLowerCase());
+    const matchesFilter = filter === "todos" || (filter === "pagados" && p.paid) || (filter === "pendientes" && !p.paid);
+    return matchesSearch && matchesFilter;
+  }), [participants, search, filter]);
+ 
   const totalPagados = participants.filter((p) => p.paid).length;
   const totalPendientes = participants.filter((p) => !p.paid).length;
-
+ 
   return (
     <div>
-      {/* Confirm delete modal */}
       {deletingId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
           <div className="glass-strong rounded-2xl p-6 max-w-sm w-full text-center">
             <Trash2 className="w-10 h-10 text-destructive mx-auto mb-3" />
             <h3 className="font-display font-bold text-xl mb-2">¿Eliminar participante?</h3>
-            <p className="text-sm text-muted-foreground mb-6">
-              Se elimina su cuenta, pronósticos y datos. Esta acción no se puede deshacer.
-            </p>
+            <p className="text-sm text-muted-foreground mb-6">Se elimina su cuenta, pronósticos y datos. No se puede deshacer.</p>
             <div className="flex gap-3">
-              <button
-                onClick={() => setDeletingId(null)}
-                className="flex-1 glass rounded-xl py-2.5 text-sm font-medium hover:bg-card transition"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={() => deleteMut.mutate(deletingId)}
-                disabled={deleteMut.isPending}
-                className="flex-1 bg-destructive text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-destructive/90 transition disabled:opacity-50"
-              >
+              <button onClick={() => setDeletingId(null)} className="flex-1 glass rounded-xl py-2.5 text-sm font-medium hover:bg-card transition">Cancelar</button>
+              <button onClick={() => deleteMut.mutate(deletingId)} disabled={deleteMut.isPending}
+                className="flex-1 bg-destructive text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-destructive/90 transition disabled:opacity-50">
                 {deleteMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Eliminar"}
               </button>
             </div>
           </div>
         </div>
       )}
-
-      {/* Stats */}
+ 
       <div className="grid grid-cols-3 gap-3 mb-6">
         <div className="glass rounded-2xl p-4 text-center">
-          <div className="font-display font-bold text-3xl text-foreground">{participants.length}</div>
+          <div className="font-display font-bold text-3xl">{participants.length}</div>
           <div className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-mono">Registrados</div>
         </div>
         <div className="glass rounded-2xl p-4 text-center">
@@ -243,99 +266,56 @@ function AdminParticipants() {
           <div className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-mono">Pendientes ⏳</div>
         </div>
       </div>
-
-      {/* Filtros */}
+ 
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar por nombre o email..."
-            className="w-full glass rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
-          />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por nombre o email..."
+            className="w-full glass rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
         </div>
         <div className="flex gap-2">
           {(["todos", "pagados", "pendientes"] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-3 py-2 rounded-xl text-xs font-medium capitalize transition ${
-                filter === f ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
-              }`}
-            >
+            <button key={f} onClick={() => setFilter(f)}
+              className={`px-3 py-2 rounded-xl text-xs font-medium capitalize transition ${filter === f ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"}`}>
               {f}
             </button>
           ))}
         </div>
       </div>
-
-      {/* Lista */}
+ 
       {q.isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
-        </div>
+        <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : filtered.length === 0 ? (
         <div className="glass-strong rounded-2xl p-12 text-center text-muted-foreground">
-          {participants.length === 0 ? "Todavía no hay participantes registrados." : "No hay resultados para ese filtro."}
+          {participants.length === 0 ? "Todavía no hay participantes." : "No hay resultados para ese filtro."}
         </div>
       ) : (
         <div className="space-y-2">
           {filtered.map((p) => (
-            <div
-              key={p.id}
-              className={`glass-strong rounded-2xl p-4 flex items-center gap-3 ${p.paid ? "ring-1 ring-secondary/30" : ""}`}
-            >
-              {/* Avatar */}
+            <div key={p.id} className={`glass-strong rounded-2xl p-4 flex items-center gap-3 ${p.paid ? "ring-1 ring-secondary/30" : ""}`}>
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center overflow-hidden flex-shrink-0">
-                {p.avatar_url ? (
-                  <img src={p.avatar_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <span className="font-bold text-sm">{p.display_name[0]?.toUpperCase()}</span>
-                )}
+                {p.avatar_url ? <img src={p.avatar_url} alt="" className="w-full h-full object-cover" /> : <span className="font-bold text-sm">{p.display_name[0]?.toUpperCase()}</span>}
               </div>
-
-              {/* Info */}
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm truncate">{p.display_name}</div>
                 <div className="text-xs text-muted-foreground truncate">{p.email}</div>
                 {p.paid && p.paid_at && (
                   <div className="text-[10px] text-secondary mt-0.5 flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {new Date(p.paid_at).toLocaleDateString("es-AR")}
+                    <Clock className="w-3 h-3" />{new Date(p.paid_at).toLocaleDateString("es-AR")}
                   </div>
                 )}
               </div>
-
-              {/* Puntos */}
               <div className="text-right hidden sm:block flex-shrink-0">
                 <div className="font-mono font-bold text-sm">{p.total_points} pts</div>
                 <div className="text-[10px] text-muted-foreground">{p.exact_hits} exactos</div>
               </div>
-
-              {/* Toggle pago */}
-              <button
-                onClick={() => setPaidMut.mutate({ userId: p.id, paid: !p.paid })}
-                disabled={setPaidMut.isPending}
-                title={p.paid ? "Marcar como pendiente" : "Confirmar pago"}
+              <button onClick={() => setPaidMut.mutate({ userId: p.id, paid: !p.paid })} disabled={setPaidMut.isPending}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition active:scale-95 flex-shrink-0 ${
-                  p.paid
-                    ? "bg-secondary/20 text-secondary hover:bg-destructive/20 hover:text-destructive"
-                    : "bg-primary/20 text-primary hover:bg-secondary/20 hover:text-secondary"
-                }`}
-              >
-                {p.paid
-                  ? <><CheckCircle2 className="w-4 h-4" /><span className="hidden sm:inline">Pagó</span></>
-                  : <><XCircle className="w-4 h-4" /><span className="hidden sm:inline">Pendiente</span></>
-                }
+                  p.paid ? "bg-secondary/20 text-secondary hover:bg-destructive/20 hover:text-destructive" : "bg-primary/20 text-primary hover:bg-secondary/20 hover:text-secondary"
+                }`}>
+                {p.paid ? <><CheckCircle2 className="w-4 h-4" /><span className="hidden sm:inline">Pagó</span></> : <><XCircle className="w-4 h-4" /><span className="hidden sm:inline">Pendiente</span></>}
               </button>
-
-              {/* Eliminar */}
-              <button
-                onClick={() => setDeletingId(p.id)}
-                title="Eliminar participante"
-                className="w-9 h-9 flex items-center justify-center rounded-xl glass hover:bg-destructive/20 hover:text-destructive transition flex-shrink-0"
-              >
+              <button onClick={() => setDeletingId(p.id)} className="w-9 h-9 flex items-center justify-center rounded-xl glass hover:bg-destructive/20 hover:text-destructive transition flex-shrink-0">
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
@@ -345,31 +325,28 @@ function AdminParticipants() {
     </div>
   );
 }
-
+ 
 function AdminMatches() {
   const qc = useQueryClient();
   const [filter, setFilter] = useState<"todos" | "pendientes" | "finalizados">("pendientes");
-
+ 
   const matchesQ = useQuery({
     queryKey: ["admin-matches"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("matches")
-        .select(
-          `id, kickoff, group, venue, status, home_score, away_score,
+        .select(`id, kickoff, group, venue, status, home_score, away_score,
            home:teams!matches_home_team_id_fkey(name,code,flag_url),
-           away:teams!matches_away_team_id_fkey(name,code,flag_url)`,
-        )
+           away:teams!matches_away_team_id_fkey(name,code,flag_url)`)
         .order("kickoff", { ascending: true });
       if (error) throw error;
       return data as unknown as AdminMatch[];
     },
   });
-
+ 
   const saveMut = useMutation({
     mutationFn: async (vars: { id: string; home: number; away: number }) => {
-      const { error } = await supabase
-        .from("matches")
+      const { error } = await supabase.from("matches")
         .update({ home_score: vars.home, away_score: vars.away, status: "finished" })
         .eq("id", vars.id);
       if (error) throw error;
@@ -382,7 +359,7 @@ function AdminMatches() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
+ 
   const filtered = useMemo(() => {
     const list = matchesQ.data ?? [];
     return list.filter((m) => {
@@ -391,54 +368,36 @@ function AdminMatches() {
       return true;
     });
   }, [matchesQ.data, filter]);
-
+ 
   return (
     <div>
-      <p className="text-muted-foreground mb-6">
-        Al guardar un partido como finalizado, se recalculan automáticamente los puntos de todos los participantes.
-      </p>
+      <p className="text-muted-foreground mb-6">Al guardar un partido, se recalculan los puntos automáticamente.</p>
       <div className="flex gap-2 mb-6">
         {(["pendientes", "finalizados", "todos"] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium uppercase tracking-wider transition ${
-              filter === f ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
-            }`}
-          >
+          <button key={f} onClick={() => setFilter(f)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium uppercase tracking-wider transition ${filter === f ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"}`}>
             {f}
           </button>
         ))}
       </div>
       {matchesQ.isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
-        </div>
+        <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : (
         <div className="space-y-3">
           {filtered.map((m) => (
-            <AdminMatchRow
-              key={m.id}
-              match={m}
-              onSave={(h, a) => saveMut.mutate({ id: m.id, home: h, away: a })}
-              saving={saveMut.isPending}
-            />
+            <AdminMatchRow key={m.id} match={m} onSave={(h, a) => saveMut.mutate({ id: m.id, home: h, away: a })} saving={saveMut.isPending} />
           ))}
         </div>
       )}
     </div>
   );
 }
-
-function AdminMatchRow({ match, onSave, saving }: {
-  match: AdminMatch;
-  onSave: (home: number, away: number) => void;
-  saving: boolean;
-}) {
+ 
+function AdminMatchRow({ match, onSave, saving }: { match: AdminMatch; onSave: (home: number, away: number) => void; saving: boolean }) {
   const [home, setHome] = useState<string>(match.home_score?.toString() ?? "");
   const [away, setAway] = useState<string>(match.away_score?.toString() ?? "");
   const isFinished = match.status === "finished";
-
+ 
   return (
     <div className={`glass-strong rounded-2xl p-4 sm:p-5 ${isFinished ? "ring-1 ring-primary/40" : ""}`}>
       <div className="flex items-center justify-between mb-3 text-[10px] sm:text-xs font-mono uppercase tracking-widest text-muted-foreground">
@@ -454,13 +413,9 @@ function AdminMatchRow({ match, onSave, saving }: {
           {match.home?.flag_url && <img src={match.home.flag_url} alt="" className="w-6 h-6 rounded shrink-0" />}
         </div>
         <div className="flex items-center gap-1.5">
-          <Input type="number" inputMode="numeric" min={0} max={20} value={home}
-            onChange={(e) => setHome(e.target.value)}
-            className="w-14 h-12 text-center font-display text-2xl font-bold" />
+          <Input type="number" inputMode="numeric" min={0} max={20} value={home} onChange={(e) => setHome(e.target.value)} className="w-14 h-12 text-center font-display text-2xl font-bold" />
           <span className="text-muted-foreground">·</span>
-          <Input type="number" inputMode="numeric" min={0} max={20} value={away}
-            onChange={(e) => setAway(e.target.value)}
-            className="w-14 h-12 text-center font-display text-2xl font-bold" />
+          <Input type="number" inputMode="numeric" min={0} max={20} value={away} onChange={(e) => setAway(e.target.value)} className="w-14 h-12 text-center font-display text-2xl font-bold" />
         </div>
         <div className="flex items-center gap-2 min-w-0">
           {match.away?.flag_url && <img src={match.away.flag_url} alt="" className="w-6 h-6 rounded shrink-0" />}
@@ -469,8 +424,7 @@ function AdminMatchRow({ match, onSave, saving }: {
       </div>
       <div className="mt-3 flex justify-end">
         <Button size="sm" onClick={() => {
-          const h = parseInt(home, 10);
-          const a = parseInt(away, 10);
+          const h = parseInt(home, 10), a = parseInt(away, 10);
           if (isNaN(h) || isNaN(a) || h < 0 || a < 0) { toast.error("Ingresá goles válidos"); return; }
           onSave(h, a);
         }} disabled={saving} className="bg-gradient-to-r from-primary to-secondary text-background font-semibold">
