@@ -5,6 +5,7 @@ import heroImg from "@/assets/hero-mundial.jpg";
 import { Countdown } from "./Countdown";
 import { PRODE_CONFIG, formatARS, totalPot } from "@/lib/prode/config";
 import { useAuth } from "@/hooks/use-auth";
+import foto7 from "@/assets/foto7.jpg";
 
 const WHATSAPP_NUMBER = "5491168556733";
 const WHATSAPP_MSG = encodeURIComponent("Hola Alan! Ya te transferí para el prode 🏆 ¿Me confirmás el pago?");
@@ -97,9 +98,15 @@ export function Hero() {
             </motion.div>
           </div>
 
-          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.3 }} className="relative">
-            <div className="absolute -inset-4 bg-gradient-to-br from-primary/30 to-secondary/30 rounded-3xl blur-2xl" />
-            <div className="relative glass-strong rounded-3xl p-6 sm:p-8 animate-float">
+<motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.3 }} className="relative">
+  <div className="absolute -inset-4 bg-gradient-to-br from-primary/30 to-secondary/30 rounded-3xl blur-2xl" />
+  {/* Foto amigos flotante */}
+  <div className="absolute -bottom-8 -left-10 w-24 z-10 pointer-events-none select-none hidden lg:block">
+    <div className="rounded-2xl overflow-hidden border-2 border-secondary/50 shadow-glow -rotate-6 hover:rotate-0 transition-transform duration-300">
+      <img src={foto7} alt="" className="w-full h-auto" />
+    </div>
+  </div>
+  <div className="relative glass-strong rounded-3xl p-6 sm:p-8 animate-float">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Arranca el Mundial en</span>
                 <span className="text-xs font-mono text-secondary">LIVE</span>
