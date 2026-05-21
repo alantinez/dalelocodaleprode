@@ -11,15 +11,13 @@ export const Route = createFileRoute("/_authenticated")({
 
 const CVU = "0000003100091909835217";
 const ALIAS = "alan.eze.martinez";
-const WHATSAPP = "https://wa.me/549XXXXXXXXXX?text=Hola%20Alan%2C%20ya%20te%20transfe%20para%20el%20prode%20%F0%9F%8F%86";
 
 function PaymentBanner() {
   const [dismissed, setDismissed] = useState(false);
   const [copiedCvu, setCopiedCvu] = useState(false);
   const [copiedAlias, setCopiedAlias] = useState(false);
   const now = new Date();
-  const firstMatch = PRODE_CONFIG.worldCupStart;
-  const started = now >= firstMatch;
+  const started = now >= PRODE_CONFIG.worldCupStart;
 
   if (dismissed) return null;
 
@@ -30,14 +28,20 @@ function PaymentBanner() {
   };
 
   return (
-    <div className={`fixed top-0 inset-x-0 z-50 ${started ? "bg-destructive/95" : "bg-gold/10 border-b border-gold/30 backdrop-blur-md"}`}>
+    <div
+      className={`fixed top-0 inset-x-0 z-[60] ${
+        started
+          ? "bg-destructive/95 backdrop-blur-md"
+          : "bg-background/80 border-b border-gold/40 backdrop-blur-md"
+      }`}
+    >
       <div className="mx-auto max-w-4xl px-4 py-3 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-        <AlertTriangle className={`w-5 h-5 flex-shrink-0 ${started ? "text-white" : "text-gold"}`} />
+        <AlertTriangle className={`w-5 h-5 flex-shrink-0 mt-0.5 sm:mt-0 ${started ? "text-white" : "text-gold"}`} />
         <div className="flex-1 min-w-0">
           <p className={`text-sm font-semibold ${started ? "text-white" : "text-gold"}`}>
             {started
               ? "⚠️ El Mundial arrancó — confirmá tu pago para poder predecir"
-              : "💸 Confirmá tu pago antes del 11 de junio para poder jugar"}
+              : "💸 Confirmá tu pago antes del 11 Jun para poder jugar"}
           </p>
           <div className="flex flex-wrap items-center gap-2 mt-1.5">
             <button
@@ -54,20 +58,12 @@ function PaymentBanner() {
               {copiedCvu ? <Check className="w-3 h-3 text-secondary" /> : <Copy className="w-3 h-3" />}
               CVU
             </button>
-            
-              href={WHATSAPP}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded-md font-semibold transition"
-            >
-              Ya pagué → Avisarle a Alan
-            </a>
             <Link
               to="/"
               hash="transferir"
-              className="text-xs underline text-muted-foreground hover:text-foreground"
+              className="text-xs bg-primary/20 hover:bg-primary/30 text-primary px-3 py-1 rounded-md font-semibold transition"
             >
-              Ver datos de pago
+              Ver datos completos →
             </Link>
           </div>
         </div>
@@ -106,7 +102,7 @@ function AuthenticatedLayout() {
     <div className="min-h-screen">
       {unpaid && <PaymentBanner />}
       <Navbar hasBanner={unpaid} />
-      <main className={unpaid ? "pt-40 pb-20" : "pt-28 pb-20"}>
+      <main className={unpaid ? "pt-44 pb-20" : "pt-28 pb-20"}>
         <Outlet />
       </main>
     </div>
