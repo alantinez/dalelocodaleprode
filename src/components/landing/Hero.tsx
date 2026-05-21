@@ -65,9 +65,9 @@ export function Hero() {
                 <Trophy className="w-5 h-5" />
                 Unirme al Prode · {formatARS(PRODE_CONFIG.entryFee)}
               </a>
-              <button className="inline-flex items-center justify-center gap-2 rounded-2xl glass px-6 py-4 font-semibold hover:bg-card transition">
-                Ver fixture completo
-              </button>
+<Link to="/fixture" className="inline-flex items-center justify-center gap-2 rounded-2xl glass px-6 py-4 font-semibold hover:bg-card transition">
+  Ver fixture completo
+</Link>
             </motion.div>
 
             <motion.div
