@@ -14,8 +14,8 @@ const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${WHATSAPP_MSG}`;
 export function Hero() {
   const { user, profile } = useAuth();
 
-  const isPaid = profile?.paid === true;
-  const isLoggedIn = !!user;
+const isPaid = profile?.paid === true;
+const isLoggedIn = !!user && profile !== null;
 
   return (
     <section className="relative pt-32 sm:pt-40 pb-16 sm:pb-24 overflow-hidden">
