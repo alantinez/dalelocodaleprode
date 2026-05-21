@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { Trophy, LogIn, ShieldCheck, BarChart3 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 
-export function Navbar() {
+export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
   const { user, profile, isAdmin } = useAuth();
 
   const initials = profile?.display_name
@@ -13,7 +13,7 @@ export function Navbar() {
     .toUpperCase() ?? "?";
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50">
+    <header className={`fixed left-0 right-0 z-40 transition-all ${hasBanner ? "top-14 sm:top-12" : "top-0"}`}>
       <div className="mx-auto max-w-7xl px-4 sm:px-6 pt-4">
         <nav className="glass-strong rounded-2xl px-4 sm:px-6 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 group">
@@ -24,10 +24,10 @@ export function Navbar() {
               </div>
             </div>
             <div className="flex flex-col leading-none">
-<span className="font-display font-bold text-sm tracking-tight">DALE DALE</span>
-<span className="font-mono text-[10px] text-muted-foreground tracking-widest">
-  MUNDIAL 2026
-</span>
+              <span className="font-display font-bold text-sm tracking-tight">DALE DALE</span>
+              <span className="font-mono text-[10px] text-muted-foreground tracking-widest">
+                MUNDIAL 2026
+              </span>
             </div>
           </Link>
 
