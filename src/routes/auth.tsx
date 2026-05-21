@@ -8,10 +8,13 @@ import { useAuth } from "@/hooks/use-auth";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
+  }),
   head: () => ({
     meta: [
-      { title: "Acceder · PRODE Mundial 2026" },
-      { name: "description", content: "Iniciá sesión o registrate para jugar el PRODE Mundial 2026." },
+      { title: "Acceder · Dale Dale" },
+      { name: "description", content: "Iniciá sesión o registrate para jugar el Dale Dale Mundial 2026." },
     ],
   }),
 });
@@ -24,10 +27,20 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { session } = useAuth();
+  const { redirect } = Route.useSearch();
+
+  const getRedirectUrl = () =>
+    redirect === "transferir" ? "/#transferir" : "/perfil";
 
   useEffect(() => {
-    if (session) navigate({ to: "/perfil" });
-  }, [session, navigate]);
+    if (session) {
+      if (redirect === "transferir") {
+        window.location.href = "/#transferir";
+      } else {
+        navigate({ to: "/perfil" });
+      }
+    }
+  }, [session, navigate, redirect]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +51,7 @@ function AuthPage() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/perfil`,
+            emailRedirectTo: `${window.location.origin}${getRedirectUrl()}`,
             data: { display_name: displayName },
           },
         });
@@ -59,12 +72,12 @@ function AuthPage() {
     }
   };
 
-const handleGoogle = async () => {
+  const handleGoogle = async () => {
     setLoading(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: window.location.origin + "/perfil",
+        redirectTo: `${window.location.origin}${getRedirectUrl()}`,
       },
     });
     if (error) {
@@ -89,7 +102,7 @@ const handleGoogle = async () => {
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-glow">
             <Trophy className="w-5 h-5 text-background" strokeWidth={2.5} />
           </div>
-<span className="font-display font-bold text-lg">Dale Dale</span>
+          <span className="font-display font-bold text-lg">Dale Dale</span>
         </Link>
 
         <div className="glass-strong rounded-2xl p-8">
