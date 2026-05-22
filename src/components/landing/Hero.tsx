@@ -6,6 +6,7 @@ import { Countdown } from "./Countdown";
 import { PRODE_CONFIG, formatARS } from "@/lib/prode/config";
 import { useAuth } from "@/hooks/use-auth";
 import foto7 from "@/assets/foto7.jpg";
+import { Lightbox } from "@/components/ui/Lightbox";
 
 const WHATSAPP_NUMBER = "5491168556733";
 const WHATSAPP_MSG = encodeURIComponent("Hola Alan! Ya te transferí para el prode 🏆 ¿Me confirmás el pago?");
@@ -26,28 +27,23 @@ export function Hero() {
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="grid lg:grid-cols-[1.2fr_1fr] gap-10 lg:gap-8 items-start">
-
-          {/* Columna izquierda */}
           <div>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
               className="inline-flex items-center gap-2 glass rounded-full px-4 py-1.5 text-xs font-mono uppercase tracking-widest text-primary mb-6">
               <Sparkles className="w-3.5 h-3.5" />
               Edición FIFA 2026 · USA · México · Canadá
             </motion.div>
-
             <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.1 }}
               className="font-display font-bold text-5xl sm:text-6xl lg:text-7xl leading-[0.95] tracking-tight">
               El prode <br className="hidden sm:block" />
               <span className="text-gradient-hero">definitivo.</span><br />
               Por la gloria eterna.
             </motion.h1>
-
             <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.2 }}
               className="mt-6 text-base sm:text-lg text-muted-foreground max-w-xl">
               Predecí cada partido, sumá puntos en vivo, escalá el ranking y llevate el pozo.
               Estadísticas premium, logros desbloqueables y el bardeo más sano del grupo.
             </motion.p>
-
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.3 }}
               className="mt-8 flex flex-col sm:flex-row gap-3">
               {!isLoggedIn && (
@@ -86,7 +82,6 @@ export function Hero() {
                 </>
               )}
             </motion.div>
-
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.5 }}
               className="mt-8 flex items-center gap-6 text-sm">
               <div className="flex items-center gap-2">
@@ -104,11 +99,8 @@ export function Hero() {
             </motion.div>
           </div>
 
-          {/* Columna derecha: countdown + foto7 */}
           <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.3 }}
             className="flex flex-col gap-4">
-
-            {/* Countdown card */}
             <div className="relative">
               <div className="absolute -inset-4 bg-gradient-to-br from-primary/30 to-secondary/30 rounded-3xl blur-2xl" />
               <div className="relative glass-strong rounded-3xl p-6 sm:p-8 animate-float">
@@ -130,12 +122,12 @@ export function Hero() {
               </div>
             </div>
 
-            {/* foto7 — mismo ancho que el countdown */}
-            <div className="relative rounded-3xl overflow-hidden border-2 border-secondary/40 shadow-glow">
-<img src={foto7} alt="" className="w-full h-auto" />
-              <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent" />
-            </div>
-
+            {/* foto7 con lightbox */}
+            <Lightbox
+              src={foto7}
+              className="relative rounded-3xl overflow-hidden border-2 border-secondary/40 shadow-glow"
+              imgClassName="w-full h-auto"
+            />
           </motion.div>
         </div>
       </div>
