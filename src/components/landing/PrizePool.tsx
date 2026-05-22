@@ -12,7 +12,8 @@ const WHATSAPP_NUMBER = "5491168556733";
 const WHATSAPP_MSG = encodeURIComponent("Hola Alan! Ya te transferí para el prode 🏆 ¿Me confirmás el pago?");
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${WHATSAPP_MSG}`;
 
-export function Hero() {
+// CAMBIO AQUÍ: La función ahora se llama PrizePool para coincidir con la importación en index.tsx
+export function PrizePool() {
   const { user, profile } = useAuth();
   const isPaid = profile?.paid === true;
   const isLoggedIn = !!user && profile !== null;
@@ -122,7 +123,6 @@ export function Hero() {
               </div>
             </div>
 
-            {/* foto7 con lightbox */}
             <Lightbox
               src={foto7}
               className="relative rounded-3xl overflow-hidden border-2 border-secondary/40 shadow-glow"
