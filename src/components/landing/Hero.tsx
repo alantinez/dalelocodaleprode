@@ -101,7 +101,7 @@ export function Hero() {
 <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.3 }} className="relative">
   <div className="absolute -inset-4 bg-gradient-to-br from-primary/30 to-secondary/30 rounded-3xl blur-2xl" />
   {/* Foto amigos flotante */}
-  <div className="absolute -bottom-8 -left-10 w-24 z-10 pointer-events-none select-none hidden lg:block">
+className="absolute -bottom-10 -left-12 w-20 z-10 pointer-events-none select-none hidden lg:block"
     <div className="rounded-2xl overflow-hidden border-2 border-secondary/50 shadow-glow -rotate-6 hover:rotate-0 transition-transform duration-300">
       <img src={foto7} alt="" className="w-full h-auto" />
     </div>
