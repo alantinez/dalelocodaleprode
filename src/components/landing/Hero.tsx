@@ -132,7 +132,7 @@ export function Hero() {
 
             {/* foto7 — mismo ancho que el countdown */}
             <div className="relative rounded-3xl overflow-hidden border-2 border-secondary/40 shadow-glow">
-              <img src={foto7} alt="" className="w-full h-56 object-cover object-top" />
+<img src={foto7} alt="" className="w-full h-auto" />
               <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent" />
             </div>
 
