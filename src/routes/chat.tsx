@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Navbar } from "@/components/landing/Navbar";
+import foto10 from "@/assets/foto10.jpg";
+import foto10 from "@/assets/foto10.jpg";
 
 export const Route = createFileRoute("/chat")({
   component: ChatPage,
@@ -223,7 +225,7 @@ function ChatPage() {
         {/* Header */}
         <div className="py-4 border-b border-border/50">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center flex-shrink-0">
               <MessageCircle className="w-5 h-5 text-background" />
             </div>
             <div>
@@ -232,9 +234,16 @@ function ChatPage() {
                 {messages.length} mensajes · Solo para participantes
               </p>
             </div>
-            <div className="ml-auto flex items-center gap-1.5 glass rounded-xl px-3 py-1.5">
-              <div className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
-              <span className="text-xs font-mono text-muted-foreground">LIVE</span>
+            <div className="ml-auto flex items-center gap-3">
+              <div className="hidden sm:block w-14 flex-shrink-0 pointer-events-none select-none">
+                <div className="rounded-xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-2">
+                  <img src={foto10} alt="" className="w-full h-auto" />
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 glass rounded-xl px-3 py-1.5">
+                <div className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
+                <span className="text-xs font-mono text-muted-foreground">LIVE</span>
+              </div>
             </div>
           </div>
         </div>
