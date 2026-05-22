@@ -294,7 +294,7 @@ function StatsPage() {
       </main>
 
       {/* Mascota y foto fijas */}
-      <div className="fixed bottom-6 right-6 w-24 sm:w-28 pointer-events-none select-none z-10 hidden sm:block">
+<div className="fixed top-28 right-6 w-52 pointer-events-none select-none z-10 hidden xl:block">
         <div className="rounded-xl overflow-hidden border-2 border-secondary shadow-glow -rotate-6 opacity-80">
           <img src={mascota3} alt="" className="w-full h-auto" />
         </div>
