@@ -8,8 +8,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { Navbar } from "@/components/landing/Navbar";
 import foto10 from "@/assets/foto10.jpg";
 import { Lightbox } from "@/components/ui/Lightbox";
-import foto10 from "@/assets/foto10.jpg";
-import { Lightbox } from "@/components/ui/Lightbox";
 
 export const Route = createFileRoute("/chat")({
   component: ChatPage,
@@ -239,7 +237,7 @@ function ChatPage() {
             <div className="ml-auto flex items-center gap-3">
               <div className="hidden sm:block w-14 flex-shrink-0 pointer-events-none select-none">
                 <div className="rounded-xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-2">
-                  <img src={foto10} alt="" className="w-full h-auto" />
+                  <Lightbox src={foto10} className="rounded-2xl overflow-hidden" imgClassName="w-full h-auto" />
                 </div>
               </div>
               <div className="flex items-center gap-1.5 glass rounded-xl px-3 py-1.5">
