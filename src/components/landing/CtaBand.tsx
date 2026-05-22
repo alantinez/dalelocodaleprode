@@ -1,9 +1,11 @@
 import confetti from "canvas-confetti";
-import { Link } from "@tanstack/react-router";
 import { Trophy } from "lucide-react";
 import { PRODE_CONFIG, formatARS } from "@/lib/prode/config";
+import { useAuth } from "@/hooks/use-auth";
 
 export function CtaBand() {
+  const { user } = useAuth();
+
   const fire = () => {
     confetti({
       particleCount: 140,
@@ -12,6 +14,7 @@ export function CtaBand() {
       colors: ["#3b82f6", "#10b981", "#f5c542", "#ffffff"],
     });
   };
+
   return (
     <section className="relative py-20 sm:py-28">
       <div className="mx-auto max-w-5xl px-4 sm:px-6">
@@ -23,17 +26,30 @@ export function CtaBand() {
               Listo para <span className="text-gradient-hero">romperla</span>?
             </h2>
             <p className="mt-4 text-muted-foreground max-w-xl mx-auto">
-              Sumate por {formatARS(PRODE_CONFIG.entryFee)} y peleá el pozo de {formatARS(PRODE_CONFIG.entryFee * PRODE_CONFIG.participants)}.
+              Sumate por {formatARS(PRODE_CONFIG.entryFee)} y peleá el pozo.
               Los primeros 3 se lo llevan todo.
             </p>
-            <Link
-              to="/auth"
-              onClick={fire}
-              className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary px-7 py-4 font-semibold text-background shadow-glow hover:scale-[1.03] transition"
-            >
-              <Trophy className="w-5 h-5" />
-              Unirme al PRODE Mundial 2026
-            </Link>
+
+            {user ? (
+              <a
+                href="/#transferir"
+                onClick={fire}
+                className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary px-7 py-4 font-semibold text-background shadow-glow hover:scale-[1.03] transition"
+              >
+                <Trophy className="w-5 h-5" />
+                Confirmar pago · {formatARS(PRODE_CONFIG.entryFee)}
+              </a>
+            ) : (
+              <a
+                href="/auth?redirect=transferir"
+                onClick={fire}
+                className="mt-8 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary px-7 py-4 font-semibold text-background shadow-glow hover:scale-[1.03] transition"
+              >
+                <Trophy className="w-5 h-5" />
+                Unirme al Dale Dale 🏆
+              </a>
+            )}
+
             <p className="mt-4 text-xs font-mono uppercase tracking-widest text-muted-foreground">
               Las predicciones cierran al inicio de cada partido
             </p>
