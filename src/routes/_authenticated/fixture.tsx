@@ -5,12 +5,10 @@ import { Loader2, CalendarDays, Filter, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { MatchCard, type MatchWithTeams, type Prediction } from "@/components/fixture/MatchCard";
+import { ChampionPicker } from "@/components/fixture/ChampionPicker";
 import { dayKey } from "@/lib/prode/scoring";
-
 import foto5 from "@/assets/foto5.jpg";
 import foto6 from "@/assets/foto6.jpg";
-import { ChampionPicker } from "@/components/fixture/ChampionPicker";
-
 
 export const Route = createFileRoute("/_authenticated/fixture")({
   component: FixturePage,
@@ -18,9 +16,6 @@ export const Route = createFileRoute("/_authenticated/fixture")({
 
 const GROUPS = ["TODOS", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"] as const;
 const PAGE_SIZE = 8;
-
-// Fotos que aparecen entre secciones de días
-const SECTION_PHOTOS = [foto5, foto6];
 
 function FixturePage() {
   const { user } = useAuth();
@@ -33,11 +28,9 @@ function FixturePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("matches")
-        .select(
-          `id, kickoff, stage, group, venue, status, home_score, away_score,
+        .select(`id, kickoff, stage, group, venue, status, home_score, away_score,
            home:teams!matches_home_team_id_fkey(id,name,code,flag_url),
-           away:teams!matches_away_team_id_fkey(id,name,code,flag_url)`,
-        )
+           away:teams!matches_away_team_id_fkey(id,name,code,flag_url)`)
         .order("kickoff", { ascending: true });
       if (error) throw error;
       return data as unknown as MatchWithTeams[];
@@ -64,8 +57,7 @@ function FixturePage() {
   }, [predsQ.data]);
 
   const filtered = useMemo(() => {
-    const list = matchesQ.data ?? [];
-    return list.filter((m) => {
+    return (matchesQ.data ?? []).filter((m) => {
       if (group !== "TODOS" && m.group !== group) return false;
       if (onlyPending) {
         const has = predByMatch.has(m.id);
@@ -76,15 +68,8 @@ function FixturePage() {
     });
   }, [matchesQ.data, group, onlyPending, predByMatch]);
 
-  // Reset visible count when filter changes
-  const handleGroupChange = (g: typeof GROUPS[number]) => {
-    setGroup(g);
-    setVisibleCount(PAGE_SIZE);
-  };
-  const handlePendingChange = (v: boolean) => {
-    setOnlyPending(v);
-    setVisibleCount(PAGE_SIZE);
-  };
+  const handleGroupChange = (g: typeof GROUPS[number]) => { setGroup(g); setVisibleCount(PAGE_SIZE); };
+  const handlePendingChange = (v: boolean) => { setOnlyPending(v); setVisibleCount(PAGE_SIZE); };
 
   const visible = filtered.slice(0, visibleCount);
   const hasMore = filtered.length > visibleCount;
@@ -104,6 +89,19 @@ function FixturePage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6">
+
+      {/* Fotos decorativas fijas al costado — solo pantallas muy anchas */}
+      <div className="fixed top-1/3 left-4 w-32 z-10 pointer-events-none select-none hidden 2xl:block">
+        <div className="rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow -rotate-3">
+          <img src={foto5} alt="" className="w-full h-auto" />
+        </div>
+      </div>
+      <div className="fixed top-2/3 right-4 w-32 z-10 pointer-events-none select-none hidden 2xl:block">
+        <div className="rounded-2xl overflow-hidden border-2 border-secondary/30 shadow-glow rotate-3">
+          <img src={foto6} alt="" className="w-full h-auto" />
+        </div>
+      </div>
+
       <header className="mb-6 sm:mb-8">
         <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-primary">
           <CalendarDays className="w-4 h-4" />
@@ -120,7 +118,9 @@ function FixturePage() {
           <span className="text-muted-foreground">/ {totalMatches} pronosticados</span>
         </div>
       </header>
-<ChampionPicker />
+
+      <ChampionPicker />
+
       {/* Filtros */}
       <div className="sticky top-24 z-30 mb-6">
         <div className="glass-strong rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center gap-3">
@@ -129,26 +129,16 @@ function FixturePage() {
           </div>
           <div className="flex flex-wrap gap-1.5">
             {GROUPS.map((g) => (
-              <button
-                key={g}
-                onClick={() => handleGroupChange(g)}
+              <button key={g} onClick={() => handleGroupChange(g)}
                 className={`px-3 py-1 rounded-lg text-xs font-mono font-bold transition ${
-                  group === g
-                    ? "bg-gradient-to-r from-primary to-secondary text-background shadow-glow"
-                    : "glass hover:bg-card"
-                }`}
-              >
+                  group === g ? "bg-gradient-to-r from-primary to-secondary text-background shadow-glow" : "glass hover:bg-card"
+                }`}>
                 {g}
               </button>
             ))}
           </div>
           <label className="ml-auto inline-flex items-center gap-2 text-xs cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={onlyPending}
-              onChange={(e) => handlePendingChange(e.target.checked)}
-              className="accent-primary"
-            />
+            <input type="checkbox" checked={onlyPending} onChange={(e) => handlePendingChange(e.target.checked)} className="accent-primary" />
             Solo pendientes
           </label>
         </div>
@@ -159,51 +149,31 @@ function FixturePage() {
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : grouped.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground">
-          No hay partidos con ese filtro.
-        </div>
+        <div className="text-center py-20 text-muted-foreground">No hay partidos con ese filtro.</div>
       ) : (
         <>
           <div className="space-y-8">
-            {grouped.map(([day, list], idx) => (
-              <>
-                <section key={day}>
-                  <h2 className="font-display font-semibold text-sm uppercase tracking-widest text-muted-foreground mb-3 sticky top-44 sm:top-40 z-10">
-                    <span className="glass px-3 py-1 rounded-lg">{day}</span>
-                  </h2>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {list.map((m) => (
-                      <MatchCard key={m.id} match={m} prediction={predByMatch.get(m.id) ?? null} />
-                    ))}
-                  </div>
-                </section>
-
-                {/* Foto intercalada cada 2 días */}
-                {idx % 2 === 1 && idx < grouped.length - 1 && (
-                  <div key={`photo-${idx}`} className="flex justify-center py-2">
-                    <div className="w-48 sm:w-56 rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-1 hover:rotate-0 transition-transform duration-300">
-                      <img
-                        src={SECTION_PHOTOS[Math.floor(idx / 2) % SECTION_PHOTOS.length]}
-                        alt=""
-                        className="w-full h-auto"
-                      />
-                    </div>
-                  </div>
-                )}
-              </>
+            {grouped.map(([day, list]) => (
+              <section key={day}>
+                <h2 className="font-display font-semibold text-sm uppercase tracking-widest text-muted-foreground mb-3 sticky top-44 sm:top-40 z-10">
+                  <span className="glass px-3 py-1 rounded-lg">{day}</span>
+                </h2>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {list.map((m) => (
+                    <MatchCard key={m.id} match={m} prediction={predByMatch.get(m.id) ?? null} />
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
 
-          {/* Ver más */}
           {hasMore && (
             <div className="flex flex-col items-center gap-2 mt-10 mb-4">
               <p className="text-xs text-muted-foreground font-mono">
                 Mostrando {visible.length} de {filtered.length} partidos
               </p>
-              <button
-                onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}
-                className="inline-flex items-center gap-2 glass-strong rounded-2xl px-6 py-3 text-sm font-semibold hover:bg-card transition active:scale-95 touch-manipulation"
-              >
+              <button onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}
+                className="inline-flex items-center gap-2 glass-strong rounded-2xl px-6 py-3 text-sm font-semibold hover:bg-card transition active:scale-95 touch-manipulation">
                 <ChevronDown className="w-4 h-4" />
                 Ver más partidos
               </button>
