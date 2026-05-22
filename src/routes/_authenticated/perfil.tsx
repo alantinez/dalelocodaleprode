@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { AchievementsGrid } from "@/components/achievements/AchievementsGrid";
 import { ChampionPicker } from "@/components/fixture/ChampionPicker";
 import foto8 from "@/assets/foto8.jpg";
+import { Lightbox } from "@/components/ui/Lightbox";
 
 export const Route = createFileRoute("/_authenticated/perfil")({
   component: PerfilPage,
@@ -134,10 +135,8 @@ function PerfilPage() {
 
         {/* foto8 al costado */}
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}
-          className="hidden sm:block w-36 flex-shrink-0 pointer-events-none select-none self-center">
-          <div className="rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-2 hover:rotate-0 transition-transform duration-300">
-            <img src={foto8} alt="" className="w-full h-auto" />
-          </div>
+          className="hidden sm:block w-36 flex-shrink-0 self-center">
+          <Lightbox src={foto8} className="rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-2 hover:rotate-0 transition-transform duration-300" imgClassName="w-full h-auto" />
         </motion.div>
       </div>
 
