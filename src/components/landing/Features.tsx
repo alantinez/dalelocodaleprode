@@ -3,11 +3,11 @@ import { Activity, BarChart3, Trophy, Users, Zap, MessageCircle } from "lucide-r
 
 const features = [
   { icon: Activity, title: "Ranking en vivo", desc: "El ranking se actualiza minuto a minuto durante los partidos." },
-  { icon: Zap, title: "Multiplicadores", desc: "Doble puntos, All-In y Pick Sorpresa para arriesgar y romperla." },
-  { icon: BarChart3, title: "Stats avanzadas", desc: "Efectividad, racha, mejor fecha y picks más arriesgados." },
-  { icon: Trophy, title: "Logros y badges", desc: "Pulpo Paul, Mufa Oficial, Visionario y más medallas." },
-  { icon: Users, title: "Perfil social", desc: "Avatar, historial, ranking histórico y predicciones públicas." },
-  { icon: MessageCircle, title: "Chat y bardeo", desc: "Comentarios por partido, reacciones y feed de actividad." },
+  { icon: BarChart3, title: "Stats avanzadas", desc: "Efectividad, racha, mejor fecha y evolución de puntos." },
+  { icon: Trophy, title: "Logros y badges", desc: "Pulpo Paul, Mufa Oficial, Visionario y más medallas desbloqueables." },
+  { icon: Users, title: "Perfil social", desc: "Avatar, historial, predicciones públicas y campeón elegido." },
+  { icon: MessageCircle, title: "Chat en vivo", desc: "Hablá con el grupo, reaccioná con emojis y bardeá en tiempo real." },
+  { icon: Zap, title: "Gran Pronóstico", desc: "Elegí el campeón del Mundial y sumá 10 puntos extra si acertás." },
 ];
 
 export function Features() {
