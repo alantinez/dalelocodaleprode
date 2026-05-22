@@ -35,19 +35,20 @@ function RankingPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-28 pb-20 relative">
 
-        {/* Fotos flotantes al costado — absolutas para no afectar el layout */}
-        <div className="hidden lg:block absolute top-0 right-0 w-36 pointer-events-none select-none z-10">
-          <div className="rounded-2xl overflow-hidden border-2 border-primary shadow-glow rotate-3">
-            <img src={mascota2} alt="" className="w-full h-auto" />
-          </div>
+      {/* Fotos fijas en los márgenes — solo pantallas muy anchas (1536px+) */}
+      <div className="fixed top-32 right-4 w-36 pointer-events-none select-none z-10 hidden 2xl:block">
+        <div className="rounded-2xl overflow-hidden border-2 border-primary shadow-glow rotate-3">
+          <img src={mascota2} alt="" className="w-full h-auto" />
         </div>
-        <div className="hidden lg:block absolute top-52 right-0 w-36 pointer-events-none select-none z-10">
-          <div className="rounded-2xl overflow-hidden border-2 border-secondary/40 shadow-glow -rotate-2">
-            <img src={foto3} alt="" className="w-full h-auto" />
-          </div>
+      </div>
+      <div className="fixed top-[26rem] right-4 w-36 pointer-events-none select-none z-10 hidden 2xl:block">
+        <div className="rounded-2xl overflow-hidden border-2 border-secondary/40 shadow-glow -rotate-2">
+          <img src={foto3} alt="" className="w-full h-auto" />
         </div>
+      </div>
+
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-28 pb-20">
 
         {/* Header */}
         <div className="mb-6">
