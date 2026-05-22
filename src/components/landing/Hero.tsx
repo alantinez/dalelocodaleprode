@@ -25,92 +25,57 @@ export function Hero() {
       </div>
 
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
-        <div className="grid lg:grid-cols-[1.2fr_1fr] gap-10 lg:gap-16 items-center">
+        <div className="grid lg:grid-cols-[1.2fr_1fr] gap-10 lg:gap-8 items-start">
 
-          {/* Columna izquierda — copy */}
+          {/* Columna izquierda */}
           <div>
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="inline-flex items-center gap-2 glass rounded-full px-4 py-1.5 text-xs font-mono uppercase tracking-widest text-primary mb-6"
-            >
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
+              className="inline-flex items-center gap-2 glass rounded-full px-4 py-1.5 text-xs font-mono uppercase tracking-widest text-primary mb-6">
               <Sparkles className="w-3.5 h-3.5" />
               Edición FIFA 2026 · USA · México · Canadá
             </motion.div>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.1 }}
-              className="font-display font-bold text-5xl sm:text-6xl lg:text-7xl leading-[0.95] tracking-tight"
-            >
+            <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.1 }}
+              className="font-display font-bold text-5xl sm:text-6xl lg:text-7xl leading-[0.95] tracking-tight">
               El prode <br className="hidden sm:block" />
               <span className="text-gradient-hero">definitivo.</span><br />
               Por la gloria eterna.
             </motion.h1>
 
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.2 }}
-              className="mt-6 text-base sm:text-lg text-muted-foreground max-w-xl"
-            >
+            <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.2 }}
+              className="mt-6 text-base sm:text-lg text-muted-foreground max-w-xl">
               Predecí cada partido, sumá puntos en vivo, escalá el ranking y llevate el pozo.
               Estadísticas premium, logros desbloqueables y el bardeo más sano del grupo.
             </motion.p>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.3 }}
-              className="mt-8 flex flex-col sm:flex-row gap-3"
-            >
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.3 }}
+              className="mt-8 flex flex-col sm:flex-row gap-3">
               {!isLoggedIn && (
                 <>
-                  <a
-                    href="/auth?redirect=transferir"
-                    className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary px-6 py-4 font-semibold text-background shadow-glow hover:scale-[1.02] transition"
-                  >
+                  <a href="/auth?redirect=transferir" className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary px-6 py-4 font-semibold text-background shadow-glow hover:scale-[1.02] transition">
                     <Trophy className="w-5 h-5" />
                     Unirme al Prode · {formatARS(PRODE_CONFIG.entryFee)}
                   </a>
-                  <Link
-                    to="/fixture"
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl glass px-6 py-4 font-semibold hover:bg-card transition"
-                  >
+                  <Link to="/fixture" className="inline-flex items-center justify-center gap-2 rounded-2xl glass px-6 py-4 font-semibold hover:bg-card transition">
                     Ver fixture completo
                   </Link>
                 </>
               )}
-
               {isLoggedIn && !isPaid && (
                 <>
-                  <a
-                    href="/#transferir"
-                    className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-gold/80 to-primary px-6 py-4 font-semibold text-background shadow-glow hover:scale-[1.02] transition"
-                  >
+                  <a href="/#transferir" className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-gold/80 to-primary px-6 py-4 font-semibold text-background shadow-glow hover:scale-[1.02] transition">
                     <Trophy className="w-5 h-5" />
                     Confirmar pago · {formatARS(PRODE_CONFIG.entryFee)}
                   </a>
-                  <a
-                    href={WHATSAPP_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-green-600 hover:bg-green-500 px-6 py-4 font-semibold text-white transition hover:scale-[1.02]"
-                  >
+                  <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-green-600 hover:bg-green-500 px-6 py-4 font-semibold text-white transition hover:scale-[1.02]">
                     <MessageCircle className="w-5 h-5" />
                     Ya pagué → Avisarle a Alan
                   </a>
                 </>
               )}
-
               {isLoggedIn && isPaid && (
                 <>
-                  <Link
-                    to="/fixture"
-                    className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary px-6 py-4 font-semibold text-background shadow-glow hover:scale-[1.02] transition"
-                  >
+                  <Link to="/fixture" className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary px-6 py-4 font-semibold text-background shadow-glow hover:scale-[1.02] transition">
                     <ArrowRight className="w-5 h-5" />
                     Ir al fixture
                   </Link>
@@ -122,17 +87,11 @@ export function Hero() {
               )}
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.8, delay: 0.5 }}
-              className="mt-8 flex items-center gap-6 text-sm"
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.5 }}
+              className="mt-8 flex items-center gap-6 text-sm">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-secondary" />
-                <span className="font-mono">
-                  <b className="text-foreground">{PRODE_CONFIG.participants}</b> jugadores
-                </span>
+                <span className="font-mono"><b className="text-foreground">{PRODE_CONFIG.participants}</b> jugadores</span>
               </div>
               <div className="h-4 w-px bg-border" />
               <div className="flex items-center gap-2">
@@ -140,50 +99,44 @@ export function Hero() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary" />
                 </span>
-                <span className="font-mono text-muted-foreground">
-                  Pozo en vivo · <b className="text-gradient-gold">creciendo 🔥</b>
-                </span>
+                <span className="font-mono text-muted-foreground">Pozo en vivo · <b className="text-gradient-gold">creciendo 🔥</b></span>
               </div>
             </motion.div>
           </div>
 
-          {/* Columna derecha — countdown card */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.3 }}
-            className="relative"
-          >
-            <div className="absolute -inset-4 bg-gradient-to-br from-primary/30 to-secondary/30 rounded-3xl blur-2xl" />
+          {/* Columna derecha: countdown + foto7 */}
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.3 }}
+            className="flex flex-col gap-4">
 
-            {/* Foto amigos flotante — solo desktop */}
-            <div className="absolute -bottom-10 -left-12 w-20 z-10 pointer-events-none select-none hidden lg:block">
-              <div className="rounded-2xl overflow-hidden border-2 border-secondary/50 shadow-glow -rotate-6 hover:rotate-0 transition-transform duration-300">
-                <img src={foto7} alt="" className="w-full h-auto" />
-              </div>
-            </div>
-
-            <div className="relative glass-strong rounded-3xl p-6 sm:p-8 animate-float">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
-                  Arranca el Mundial en
-                </span>
-                <span className="text-xs font-mono text-secondary">LIVE</span>
-              </div>
-              <Countdown />
-              <div className="mt-6 pt-6 border-t border-border/60 grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-xs text-muted-foreground">Inauguración</div>
-                  <div className="font-display font-semibold mt-0.5">11 Jun 2026</div>
+            {/* Countdown card */}
+            <div className="relative">
+              <div className="absolute -inset-4 bg-gradient-to-br from-primary/30 to-secondary/30 rounded-3xl blur-2xl" />
+              <div className="relative glass-strong rounded-3xl p-6 sm:p-8 animate-float">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Arranca el Mundial en</span>
+                  <span className="text-xs font-mono text-secondary">LIVE</span>
                 </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Estadio</div>
-                  <div className="font-display font-semibold mt-0.5">Azteca, México</div>
+                <Countdown />
+                <div className="mt-6 pt-6 border-t border-border/60 grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-muted-foreground">Inauguración</div>
+                    <div className="font-display font-semibold mt-0.5">11 Jun 2026</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Estadio</div>
+                    <div className="font-display font-semibold mt-0.5">Azteca, México</div>
+                  </div>
                 </div>
               </div>
             </div>
+
+            {/* foto7 — mismo ancho que el countdown */}
+            <div className="relative rounded-3xl overflow-hidden border-2 border-secondary/40 shadow-glow">
+              <img src={foto7} alt="" className="w-full h-56 object-cover object-top" />
+              <div className="absolute inset-0 bg-gradient-to-t from-background/60 to-transparent" />
+            </div>
+
           </motion.div>
-
         </div>
       </div>
     </section>
