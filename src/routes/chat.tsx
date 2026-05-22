@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Navbar } from "@/components/landing/Navbar";
 import foto10 from "@/assets/foto10.jpg";
 import { Lightbox } from "@/components/ui/Lightbox";
-
+ 
 export const Route = createFileRoute("/chat")({
   component: ChatPage,
   head: () => ({
@@ -18,23 +18,23 @@ export const Route = createFileRoute("/chat")({
     ],
   }),
 });
-
+ 
 const EMOJIS = ["👍", "❤️", "😂", "🔥", "😮"] as const;
 const MAX_CHARS = 500;
-
+ 
 type Profile = {
   id: string;
   display_name: string;
   avatar_url: string | null;
 };
-
+ 
 type Reaction = {
   id: string;
   message_id: string;
   user_id: string;
   emoji: string;
 };
-
+ 
 type Message = {
   id: string;
   user_id: string;
@@ -44,7 +44,7 @@ type Message = {
   profile?: Profile;
   reactions?: Reaction[];
 };
-
+ 
 function formatTime(dateStr: string) {
   const d = new Date(dateStr);
   const now = new Date();
@@ -56,7 +56,7 @@ function formatTime(dateStr: string) {
   if (diffHours < 24) return `${diffHours}h`;
   return d.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
 }
-
+ 
 function Avatar({ profile, size = "sm" }: { profile?: Profile; size?: "sm" | "md" }) {
   const initials = profile?.display_name?.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
   const cls = size === "sm" ? "w-8 h-8 text-xs" : "w-10 h-10 text-sm";
@@ -69,7 +69,7 @@ function Avatar({ profile, size = "sm" }: { profile?: Profile; size?: "sm" | "md
     </div>
   );
 }
-
+ 
 function ChatPage() {
   const { user, profile, isAdmin } = useAuth();
   const qc = useQueryClient();
@@ -77,7 +77,7 @@ function ChatPage() {
   const [showEmojiPicker, setShowEmojiPicker] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-
+ 
   // Fetch messages + profiles + reactions
   const messagesQ = useQuery({
     queryKey: ["chat-messages"],
@@ -96,11 +96,11 @@ function ChatPage() {
     },
     enabled: !!user,
   });
-
+ 
   // Realtime subscription
   useEffect(() => {
     if (!user) return;
-
+ 
     const channel = supabase
       .channel("chat-realtime")
       .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => {
@@ -110,15 +110,15 @@ function ChatPage() {
         qc.invalidateQueries({ queryKey: ["chat-messages"] });
       })
       .subscribe();
-
+ 
     return () => { supabase.removeChannel(channel); };
   }, [user, qc]);
-
+ 
   // Auto scroll al último mensaje
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messagesQ.data?.length]);
-
+ 
   const sendMut = useMutation({
     mutationFn: async (content: string) => {
       if (!user) throw new Error("No autenticado");
@@ -133,7 +133,7 @@ function ChatPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
+ 
   const deleteMut = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("messages").delete().eq("id", id);
@@ -142,7 +142,7 @@ function ChatPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["chat-messages"] }),
     onError: (e: Error) => toast.error(e.message),
   });
-
+ 
   const pinMut = useMutation({
     mutationFn: async ({ id, pinned }: { id: string; pinned: boolean }) => {
       const { error } = await supabase.from("messages").update({ pinned }).eq("id", id);
@@ -151,7 +151,7 @@ function ChatPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["chat-messages"] }),
     onError: (e: Error) => toast.error(e.message),
   });
-
+ 
   const reactionMut = useMutation({
     mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
       if (!user) return;
@@ -169,23 +169,23 @@ function ChatPage() {
       setShowEmojiPicker(null);
     },
   });
-
+ 
   const handleSend = () => {
     const trimmed = input.trim();
     if (!trimmed || trimmed.length > MAX_CHARS) return;
     sendMut.mutate(trimmed);
   };
-
+ 
   const handleKey = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
-
+ 
   const messages = messagesQ.data ?? [];
   const pinnedMessages = messages.filter((m) => m.pinned);
-
+ 
   // Agrupar mensajes consecutivos del mismo usuario
   const grouped = useMemo(() => {
     return messages.map((msg, i) => {
@@ -198,7 +198,7 @@ function ChatPage() {
       return { ...msg, isOwn, showHeader: !isSameUser || !isClose };
     });
   }, [messages, user?.id]);
-
+ 
   if (!user) {
     return (
       <div className="min-h-screen bg-background">
@@ -216,11 +216,11 @@ function ChatPage() {
       </div>
     );
   }
-
+ 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
-
+ 
       <div className="flex-1 flex flex-col mx-auto w-full max-w-3xl px-4 sm:px-6 pt-24 pb-0">
         {/* Header */}
         <div className="py-4 border-b border-border/50">
@@ -247,7 +247,7 @@ function ChatPage() {
             </div>
           </div>
         </div>
-
+ 
         {/* Mensajes pineados */}
         {pinnedMessages.length > 0 && (
           <div className="py-2 space-y-1">
@@ -265,7 +265,7 @@ function ChatPage() {
             ))}
           </div>
         )}
-
+ 
         {/* Lista de mensajes */}
         <div className="flex-1 overflow-y-auto py-4 space-y-1" style={{ minHeight: 0 }}>
           {messagesQ.isLoading ? (
@@ -284,7 +284,7 @@ function ChatPage() {
                 const iMine = users.some((r) => r.user_id === user?.id);
                 return { emoji, count: users.length, iMine };
               }).filter((r) => r.count > 0);
-
+ 
               return (
                 <div
                   key={msg.id}
@@ -296,7 +296,7 @@ function ChatPage() {
                   ) : (
                     <div className="w-8 flex-shrink-0" />
                   )}
-
+ 
                   <div className={`flex flex-col max-w-[75%] ${msg.isOwn ? "items-end" : "items-start"}`}>
                     {/* Nombre + hora */}
                     {msg.showHeader && (
@@ -307,7 +307,7 @@ function ChatPage() {
                         <span className="text-[10px] text-muted-foreground">{formatTime(msg.created_at)}</span>
                       </div>
                     )}
-
+ 
                     {/* Burbuja */}
                     <div className="relative">
                       <div
@@ -320,7 +320,7 @@ function ChatPage() {
                         {msg.pinned && <Pin className="w-3 h-3 text-gold inline mr-1" />}
                         {msg.content}
                       </div>
-
+ 
                       {/* Acciones hover */}
                       <div className={`absolute top-0 ${msg.isOwn ? "left-0 -translate-x-full pr-1" : "right-0 translate-x-full pl-1"} opacity-0 group-hover:opacity-100 transition flex items-center gap-1`}>
                         <button
@@ -353,7 +353,7 @@ function ChatPage() {
                           </button>
                         )}
                       </div>
-
+ 
                       {/* Emoji picker */}
                       {showEmojiPicker === msg.id && (
                         <div className={`absolute top-8 z-20 glass-strong rounded-xl p-1.5 flex gap-1 shadow-glow ${msg.isOwn ? "right-0" : "left-0"}`}>
@@ -369,7 +369,7 @@ function ChatPage() {
                         </div>
                       )}
                     </div>
-
+ 
                     {/* Reacciones */}
                     {reactionGroups.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
@@ -395,7 +395,7 @@ function ChatPage() {
           )}
           <div ref={bottomRef} />
         </div>
-
+ 
         {/* Input */}
         <div className="py-4 border-t border-border/50">
           <div className="flex gap-3 items-end">
@@ -431,7 +431,7 @@ function ChatPage() {
           </div>
         </div>
       </div>
-
+ 
       {/* Click outside emoji picker */}
       {showEmojiPicker && (
         <div className="fixed inset-0 z-10" onClick={() => setShowEmojiPicker(null)} />
@@ -439,3 +439,4 @@ function ChatPage() {
     </div>
   );
 }
+ 
