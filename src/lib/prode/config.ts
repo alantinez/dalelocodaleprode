@@ -2,7 +2,7 @@ export const PRODE_CONFIG = {
   name: "PRODE MUNDIAL 2026",
   entryFee: 30000, // ARS
   currency: "ARS",
-  participants: 24, // mock, viene de DB en fase 2
+
   prizes: [
     { position: 1, label: "1er puesto", percent: 60, medal: "gold" as const },
     { position: 2, label: "2do puesto", percent: 30, medal: "silver" as const },
