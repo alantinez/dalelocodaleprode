@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import mascota from "@/assets/mascota-prode.png";
 import amigos from "@/assets/amigos.jpg";
 import foto2 from "@/assets/foto2.jpeg";
+import { Lightbox } from "@/components/ui/Lightbox";
 import { PRODE_CONFIG, formatARS } from "@/lib/prode/config";
 
 const CVU = "0000003100091909835217";
@@ -97,7 +98,7 @@ export function TransferimeRaton() {
           {/* Foto del grupo + stickers */}
           <div className="relative">
             <div className="glass-strong rounded-3xl overflow-hidden h-full min-h-[300px] relative group">
-              <img src={amigos} alt="El grupo del prode" className="w-full h-full object-cover object-center" />
+              <Lightbox src={amigos} imgClassName="w-full h-full object-cover object-center" />
               <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/20 to-transparent" />
               <div className="absolute bottom-0 inset-x-0 p-6 text-center">
                 <div className="inline-flex items-center gap-2 glass rounded-full px-3 py-1.5 text-xs font-mono uppercase tracking-widest text-gold mb-2">
@@ -110,18 +111,14 @@ export function TransferimeRaton() {
             </div>
 
             {/* Mascota sticker - abajo derecha */}
-            <div className="hidden sm:block absolute -bottom-6 -right-6 lg:-bottom-8 lg:-right-8 w-32 lg:w-40 pointer-events-none select-none animate-float">
+            <div className="hidden sm:block absolute -bottom-6 -right-6 lg:-bottom-8 lg:-right-8 w-32 lg:w-40 animate-float">
               <div className="absolute inset-0 -z-10 bg-gold/30 blur-2xl rounded-full" />
-              <div className="relative rounded-2xl overflow-hidden border-4 border-gold shadow-glow rotate-6 hover:rotate-0 transition pointer-events-auto">
-                <img src={mascota} alt="Mascota del Prode" className="w-full h-auto" />
-              </div>
+              <Lightbox src={mascota} className="relative rounded-2xl overflow-hidden border-4 border-gold shadow-glow rotate-6 hover:rotate-0 transition" imgClassName="w-full h-auto" />
             </div>
 
             {/* foto2 sticker - arriba izquierda */}
-            <div className="hidden sm:block absolute -top-6 -left-6 w-32 lg:w-36 pointer-events-none select-none">
-              <div className="rounded-2xl overflow-hidden border-2 border-primary/40 shadow-glow -rotate-6 hover:rotate-0 transition">
-                <img src={foto2} alt="" className="w-full h-auto" />
-              </div>
+            <div className="hidden sm:block absolute -top-6 -left-6 w-32 lg:w-36">
+              <Lightbox src={foto2} className="rounded-2xl overflow-hidden border-2 border-primary/40 shadow-glow -rotate-6 hover:rotate-0 transition" imgClassName="w-full h-auto" />
             </div>
           </div>
         </div>
