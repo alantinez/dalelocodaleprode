@@ -1,4 +1,3 @@
-Navbar chat · TSX
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Trophy, LogIn, ShieldCheck, BarChart3, Menu, X, MessageCircle } from "lucide-react";
