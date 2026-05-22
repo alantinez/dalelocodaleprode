@@ -3,7 +3,6 @@ import { Navbar } from "@/components/landing/Navbar";
 import { Hero } from "@/components/landing/Hero";
 import { PrizePool } from "@/components/landing/PrizePool";
 import { Features } from "@/components/landing/Features";
-import { Reglamento } from "@/components/landing/Reglamento";
 import { RankingPreview } from "@/components/landing/RankingPreview";
 import { CtaBand } from "@/components/landing/CtaBand";
 import { TransferimeRaton } from "@/components/landing/TransferimeRaton";
@@ -20,7 +19,6 @@ function Index() {
       <main>
 <Hero />
 <PrizePool />
-<Reglamento />
 <Features />
 <RankingPreview />
 <TransferimeRaton />
