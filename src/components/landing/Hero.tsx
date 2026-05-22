@@ -93,7 +93,7 @@ export function Hero() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary" />
                 </span>
-                <span className="font-mono text-muted-foreground">Pozo en vivo · <b className="text-gradient-gold">{formatARS(totalPot())}</b></span>
+                <span className="font-mono text-muted-foreground">Pozo en vivo · <b className="text-gradient-gold">creciendo 🔥</b></span>
               </div>
             </motion.div>
           </div>
