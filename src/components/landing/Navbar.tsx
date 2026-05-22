@@ -2,25 +2,26 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Trophy, LogIn, ShieldCheck, BarChart3, Menu, X, MessageCircle } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
- 
+
 export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
   const { user, profile, isAdmin } = useAuth();
   const [open, setOpen] = useState(false);
- 
+
   const initials = profile?.display_name
     ?.split(" ")
     .map((s) => s[0])
     .slice(0, 2)
     .join("")
     .toUpperCase() ?? "?";
- 
+
   const close = () => setOpen(false);
- 
+
   return (
     <>
       <header className={`fixed left-0 right-0 z-40 transition-all ${hasBanner ? "top-14 sm:top-12" : "top-0"}`}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 pt-4">
           <nav className="glass-strong rounded-2xl px-4 sm:px-6 py-3 flex items-center justify-between">
+
             {/* Logo */}
             <Link to="/" className="flex items-center gap-2 group" onClick={close}>
               <div className="relative">
@@ -36,7 +37,7 @@ export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
                 </span>
               </div>
             </Link>
- 
+
             {/* Desktop nav */}
             <div className="hidden md:flex items-center gap-6 text-sm font-medium">
               {user ? (
@@ -53,6 +54,9 @@ export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
                   <Link to="/chat" className="hover:text-primary transition inline-flex items-center gap-1" activeProps={{ className: "text-primary" }}>
                     <MessageCircle className="w-3.5 h-3.5" /> Chat
                   </Link>
+                  <Link to="/reglamento" className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>
+                    Reglamento
+                  </Link>
                   <Link to="/perfil" className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>
                     Mi perfil
                   </Link>
@@ -64,9 +68,11 @@ export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
                 </>
               ) : (
                 <>
-<a href="/#premios" className="hover:text-primary transition">Premios</a>
-<Link to="/reglamento" className="hover:text-primary transition">Reglamento</Link>
-<a href="/#como-funciona" className="hover:text-primary transition">Cómo funciona</a>
+                  <a href="/#premios" className="hover:text-primary transition">Premios</a>
+                  <Link to="/reglamento" className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>
+                    Reglamento
+                  </Link>
+                  <a href="/#como-funciona" className="hover:text-primary transition">Cómo funciona</a>
                   <Link to="/ranking" className="hover:text-primary transition">Ranking</Link>
                   <Link to="/stats" className="hover:text-primary transition">Stats</Link>
                   <Link to="/chat" className="hover:text-primary transition inline-flex items-center gap-1">
@@ -75,7 +81,7 @@ export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
                 </>
               )}
             </div>
- 
+
             {/* Right side */}
             <div className="flex items-center gap-2">
               {user && profile ? (
@@ -105,7 +111,7 @@ export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
                   <span>Ingresar</span>
                 </Link>
               )}
- 
+
               {/* Hamburger — solo mobile */}
               <button
                 onClick={() => setOpen((v) => !v)}
@@ -116,7 +122,7 @@ export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
               </button>
             </div>
           </nav>
- 
+
           {/* Mobile menu */}
           {open && (
             <div className="md:hidden glass-strong rounded-2xl mt-2 px-4 py-4 flex flex-col gap-1 animate-in fade-in slide-in-from-top-2 duration-200">
@@ -126,6 +132,7 @@ export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
                   <MobileLink to="/ranking" label="🏆 Ranking" onClick={close} />
                   <MobileLink to="/stats" label="📊 Stats" onClick={close} />
                   <MobileLink to="/chat" label="💬 Chat" onClick={close} />
+                  <MobileLink to="/reglamento" label="📋 Reglamento" onClick={close} />
                   <MobileLink to="/perfil" label="👤 Mi perfil" onClick={close} />
                   {isAdmin && (
                     <MobileLink to="/admin" label="🛡️ Admin" onClick={close} />
@@ -138,6 +145,7 @@ export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
                   <a href="/#premios" onClick={close} className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-card transition text-sm font-medium">
                     🎁 Premios
                   </a>
+                  <MobileLink to="/reglamento" label="📋 Reglamento" onClick={close} />
                   <a href="/#como-funciona" onClick={close} className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-card transition text-sm font-medium">
                     ℹ️ Cómo funciona
                   </a>
@@ -158,7 +166,7 @@ export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
           )}
         </div>
       </header>
- 
+
       {/* Backdrop */}
       {open && (
         <div className="fixed inset-0 z-30 md:hidden" onClick={close} />
@@ -166,7 +174,7 @@ export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
     </>
   );
 }
- 
+
 function MobileLink({ to, label, onClick }: { to: string; label: string; onClick: () => void }) {
   return (
     <Link
@@ -179,7 +187,7 @@ function MobileLink({ to, label, onClick }: { to: string; label: string; onClick
     </Link>
   );
 }
- 
+
 function MobileSignOut() {
   const { signOut } = useAuth();
   return (
@@ -191,4 +199,3 @@ function MobileSignOut() {
     </button>
   );
 }
- 
