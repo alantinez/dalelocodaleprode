@@ -8,7 +8,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { AchievementsGrid } from "@/components/achievements/AchievementsGrid";
 import { ChampionPicker } from "@/components/fixture/ChampionPicker";
 import foto8 from "@/assets/foto8.jpg";
-import { Lightbox } from "@/components/ui/Lightbox";
+import { Lightbox } from "@/components/Lightbox";
 
 export const Route = createFileRoute("/_authenticated/perfil")({
   component: PerfilPage,
