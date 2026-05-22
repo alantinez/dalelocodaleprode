@@ -64,8 +64,9 @@ export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
                 </>
               ) : (
                 <>
-                  <a href="/#premios" className="hover:text-primary transition">Premios</a>
-                  <a href="/#como-funciona" className="hover:text-primary transition">Cómo funciona</a>
+<a href="/#premios" className="hover:text-primary transition">Premios</a>
+<a href="/#reglamento" className="hover:text-primary transition">Reglamento</a>
+<a href="/#como-funciona" className="hover:text-primary transition">Cómo funciona</a>
                   <Link to="/ranking" className="hover:text-primary transition">Ranking</Link>
                   <Link to="/stats" className="hover:text-primary transition">Stats</Link>
                   <Link to="/chat" className="hover:text-primary transition inline-flex items-center gap-1">
