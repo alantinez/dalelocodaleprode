@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Navbar } from "@/components/landing/Navbar";
 import foto10 from "@/assets/foto10.jpg";
-import { Lightbox } from "@/components/ui/Lightbox";
+import { Lightbox } from "@/components/Lightbox";
  
 export const Route = createFileRoute("/chat")({
   component: ChatPage,
