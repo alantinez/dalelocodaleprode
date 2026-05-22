@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Trophy, Medal, Loader2, ArrowLeft, Target, Flame, TrendingUp, ExternalLink } from "lucide-react";
+import { Trophy, Medal, Loader2, ArrowLeft, Target, Flame, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/landing/Navbar";
 import mascota2 from "@/assets/mascota2.jpg.jpeg";
@@ -35,29 +35,29 @@ function RankingPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-28 pb-20">
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-28 pb-20 relative">
+
+        {/* Fotos flotantes al costado — absolutas para no afectar el layout */}
+        <div className="hidden lg:block absolute top-0 right-0 w-36 pointer-events-none select-none z-10">
+          <div className="rounded-2xl overflow-hidden border-2 border-primary shadow-glow rotate-3">
+            <img src={mascota2} alt="" className="w-full h-auto" />
+          </div>
+        </div>
+        <div className="hidden lg:block absolute top-52 right-0 w-36 pointer-events-none select-none z-10">
+          <div className="rounded-2xl overflow-hidden border-2 border-secondary/40 shadow-glow -rotate-2">
+            <img src={foto3} alt="" className="w-full h-auto" />
+          </div>
+        </div>
 
         {/* Header */}
-        <div className="mb-8 flex items-start justify-between gap-4">
-          <div className="flex-1">
-            <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition mb-3">
-              <ArrowLeft className="w-3.5 h-3.5" /> Volver
-            </Link>
-            <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight">
-              Tabla de <span className="text-gradient-hero">posiciones</span>
-            </h1>
-            <p className="text-muted-foreground mt-2">Actualizada en tiempo real · Top 100 participantes</p>
-          </div>
-
-          {/* Fotos al costado del header */}
-          <div className="hidden md:flex flex-col gap-3 items-end flex-shrink-0">
-            <div className="w-28 rounded-2xl overflow-hidden border-2 border-primary shadow-glow rotate-3 pointer-events-none select-none">
-              <img src={mascota2} alt="" className="w-full h-auto" />
-            </div>
-            <div className="w-28 rounded-2xl overflow-hidden border-2 border-secondary/40 shadow-glow -rotate-2 pointer-events-none select-none">
-              <img src={foto3} alt="" className="w-full h-auto" />
-            </div>
-          </div>
+        <div className="mb-6">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition mb-3">
+            <ArrowLeft className="w-3.5 h-3.5" /> Volver
+          </Link>
+          <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight">
+            Tabla de <span className="text-gradient-hero">posiciones</span>
+          </h1>
+          <p className="text-muted-foreground mt-2">Actualizada en tiempo real · Top 100 participantes</p>
         </div>
 
         <div className="flex items-center justify-between mb-4">
