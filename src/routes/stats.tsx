@@ -170,6 +170,14 @@ function StatsPage() {
   return (
     <div className="min-h-screen">
       <Navbar />
+
+      {/* Mascota fija al costado — solo pantallas muy anchas */}
+      <div className="fixed bottom-6 right-6 w-28 pointer-events-none select-none z-10 hidden 2xl:block">
+        <div className="rounded-xl overflow-hidden border-2 border-secondary shadow-glow -rotate-6 opacity-80">
+          <img src={mascota3} alt="" className="w-full h-auto" />
+        </div>
+      </div>
+
       <main className="pt-28 pb-24 mx-auto max-w-6xl px-4 sm:px-6">
         <header className="mb-8">
           <div className="inline-flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-primary">
@@ -223,13 +231,6 @@ function StatsPage() {
                 </div>
               </div>
             </section>
-
-            {/* Foto entre secciones */}
-            <div className="hidden sm:flex justify-end mb-6 pointer-events-none select-none gap-4">
-              <div className="w-36 rounded-2xl overflow-hidden border-2 border-gold/30 shadow-glow rotate-1">
-                <img src={foto4} alt="" className="w-full h-auto" />
-              </div>
-            </div>
 
             <section className="glass-strong rounded-2xl p-5 mb-8">
               <h3 className="font-display font-semibold mb-4 flex items-center gap-2">
@@ -291,9 +292,6 @@ function StatsPage() {
           </>
         )}
       </main>
-
-      {/* Mascota y foto fijas */}
-
     </div>
   );
 }
