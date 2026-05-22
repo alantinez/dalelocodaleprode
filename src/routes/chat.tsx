@@ -234,7 +234,7 @@ function ChatPage() {
                 {messages.length} mensajes · Solo para participantes
               </p>
             </div>
-            <div className="ml-auto flex items-center gap-3">
+<div className="ml-auto flex items-center gap-1.5">
 {/* foto10 fija al costado — solo pantallas anchas */}
 <div className="fixed top-1/2 -translate-y-1/2 right-6 w-40 z-20 pointer-events-none select-none hidden xl:block">
   <div className="rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-3 hover:rotate-0 transition-transform duration-300">
