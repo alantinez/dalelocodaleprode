@@ -6,7 +6,7 @@ import { Countdown } from "./Countdown";
 import { PRODE_CONFIG, formatARS } from "@/lib/prode/config";
 import { useAuth } from "@/hooks/use-auth";
 import foto7 from "@/assets/foto7.jpg";
-import { Lightbox } from "@/components/ui/Lightbox";
+import { Lightbox } from "@/components/Lightbox";
 
 const WHATSAPP_NUMBER = "5491168556733";
 const WHATSAPP_MSG = encodeURIComponent("Hola Alan! Ya te transferí para el prode 🏆 ¿Me confirmás el pago?");
