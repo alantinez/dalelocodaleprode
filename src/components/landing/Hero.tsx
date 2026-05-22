@@ -6,16 +6,16 @@ import { Countdown } from "./Countdown";
 import { PRODE_CONFIG, formatARS } from "@/lib/prode/config";
 import { useAuth } from "@/hooks/use-auth";
 import foto7 from "@/assets/foto7.jpg";
-
+ 
 const WHATSAPP_NUMBER = "5491168556733";
 const WHATSAPP_MSG = encodeURIComponent("Hola Alan! Ya te transferí para el prode 🏆 ¿Me confirmás el pago?");
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${WHATSAPP_MSG}`;
-
+ 
 export function Hero() {
   const { user, profile } = useAuth();
   const isPaid = profile?.paid === true;
   const isLoggedIn = !!user && profile !== null;
-
+ 
   return (
     <section className="relative pt-32 sm:pt-40 pb-16 sm:pb-24 overflow-hidden">
       <div className="absolute inset-0 -z-10">
@@ -23,10 +23,10 @@ export function Hero() {
         <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/60 to-background" />
         <div className="absolute inset-0 grid-bg opacity-30" />
       </div>
-
+ 
       <div className="mx-auto max-w-7xl px-4 sm:px-6">
         <div className="grid lg:grid-cols-[1.2fr_1fr] gap-10 lg:gap-16 items-center">
-
+ 
           {/* Columna izquierda — copy */}
           <div>
             <motion.div
@@ -38,7 +38,7 @@ export function Hero() {
               <Sparkles className="w-3.5 h-3.5" />
               Edición FIFA 2026 · USA · México · Canadá
             </motion.div>
-
+ 
             <motion.h1
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -49,7 +49,7 @@ export function Hero() {
               <span className="text-gradient-hero">definitivo.</span><br />
               Por la gloria eterna.
             </motion.h1>
-
+ 
             <motion.p
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -59,7 +59,7 @@ export function Hero() {
               Predecí cada partido, sumá puntos en vivo, escalá el ranking y llevate el pozo.
               Estadísticas premium, logros desbloqueables y el bardeo más sano del grupo.
             </motion.p>
-
+ 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -83,7 +83,7 @@ export function Hero() {
                   </Link>
                 </>
               )}
-
+ 
               {isLoggedIn && !isPaid && (
                 <>
                   <a
@@ -104,7 +104,7 @@ export function Hero() {
                   </a>
                 </>
               )}
-
+ 
               {isLoggedIn && isPaid && (
                 <>
                   <Link
@@ -121,7 +121,7 @@ export function Hero() {
                 </>
               )}
             </motion.div>
-
+ 
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -146,7 +146,7 @@ export function Hero() {
               </div>
             </motion.div>
           </div>
-
+ 
           {/* Columna derecha — countdown card */}
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
@@ -155,14 +155,14 @@ export function Hero() {
             className="relative"
           >
             <div className="absolute -inset-4 bg-gradient-to-br from-primary/30 to-secondary/30 rounded-3xl blur-2xl" />
-
+ 
             {/* Foto amigos flotante — solo desktop */}
             <div className="absolute -bottom-10 -left-12 w-20 z-10 pointer-events-none select-none hidden lg:block">
               <div className="rounded-2xl overflow-hidden border-2 border-secondary/50 shadow-glow -rotate-6 hover:rotate-0 transition-transform duration-300">
                 <img src={foto7} alt="" className="w-full h-auto" />
               </div>
             </div>
-
+ 
             <div className="relative glass-strong rounded-3xl p-6 sm:p-8 animate-float">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
@@ -183,7 +183,7 @@ export function Hero() {
               </div>
             </div>
           </motion.div>
-
+ 
         </div>
       </div>
     </section>
