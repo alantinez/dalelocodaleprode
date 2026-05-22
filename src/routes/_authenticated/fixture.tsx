@@ -91,12 +91,12 @@ function FixturePage() {
     <div className="mx-auto max-w-5xl px-4 sm:px-6">
 
       {/* Fotos decorativas fijas al costado — solo pantallas muy anchas */}
-      <div className="fixed top-1/3 left-4 w-32 z-10 pointer-events-none select-none hidden 2xl:block">
+      <div className="fixed top-1/3 left-4 w-44 z-10 pointer-events-none select-none hidden 2xl:block">
         <div className="rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow -rotate-3">
           <img src={foto5} alt="" className="w-full h-auto" />
         </div>
       </div>
-      <div className="fixed top-2/3 right-4 w-32 z-10 pointer-events-none select-none hidden 2xl:block">
+      <div className="fixed top-2/3 right-4 w-44 z-10 pointer-events-none select-none hidden 2xl:block">
         <div className="rounded-2xl overflow-hidden border-2 border-secondary/30 shadow-glow rotate-3">
           <img src={foto6} alt="" className="w-full h-auto" />
         </div>
