@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/landing/Navbar";
 import mascota2 from "@/assets/mascota2.jpg.jpeg";
 import foto3 from "@/assets/foto3.jpeg";
+import { Lightbox } from "@/components/ui/Lightbox";
 
 export const Route = createFileRoute("/ranking")({
   head: () => ({
@@ -37,15 +38,11 @@ function RankingPage() {
       <Navbar />
 
       {/* Fotos fijas en los márgenes — solo pantallas muy anchas (1536px+) */}
-      <div className="fixed top-32 right-4 w-36 pointer-events-none select-none z-10 hidden 2xl:block">
-        <div className="rounded-2xl overflow-hidden border-2 border-primary shadow-glow rotate-3">
-          <img src={mascota2} alt="" className="w-full h-auto" />
-        </div>
+      <div className="fixed top-32 right-4 w-36 z-10 hidden 2xl:block">
+        <Lightbox src={mascota2} className="rounded-2xl overflow-hidden border-2 border-primary shadow-glow rotate-3" imgClassName="w-full h-auto" />
       </div>
-      <div className="fixed top-[26rem] right-4 w-36 pointer-events-none select-none z-10 hidden 2xl:block">
-        <div className="rounded-2xl overflow-hidden border-2 border-secondary/40 shadow-glow -rotate-2">
-          <img src={foto3} alt="" className="w-full h-auto" />
-        </div>
+      <div className="fixed top-[26rem] right-4 w-36 z-10 hidden 2xl:block">
+        <Lightbox src={foto3} className="rounded-2xl overflow-hidden border-2 border-secondary/40 shadow-glow -rotate-2" imgClassName="w-full h-auto" />
       </div>
 
       <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-28 pb-20">
