@@ -18,13 +18,13 @@ function Index() {
     <div className="min-h-screen">
       <Navbar />
       <main>
-        <Hero />
-        <PrizePool />
-        <Features />
-        <Reglamento />
-        <RankingPreview />
-        <TransferimeRaton />
-        <CtaBand />
+<Hero />
+<PrizePool />
+<Reglamento />
+<Features />
+<RankingPreview />
+<TransferimeRaton />
+<CtaBand />
       </main>
       <Footer />
     </div>
