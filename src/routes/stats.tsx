@@ -10,7 +10,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/landing/Navbar";
 import { useAuth } from "@/hooks/use-auth";
 import mascota3 from "@/assets/mascota3.jpg.jpeg";
-import foto4 from "@/assets/foto4.jpg";
 
 export const Route = createFileRoute("/stats")({
   component: StatsPage,
@@ -294,11 +293,7 @@ function StatsPage() {
       </main>
 
       {/* Mascota y foto fijas */}
-<div className="fixed top-28 right-6 w-52 pointer-events-none select-none z-10 hidden xl:block">
-        <div className="rounded-xl overflow-hidden border-2 border-secondary shadow-glow -rotate-6 opacity-80">
-          <img src={mascota3} alt="" className="w-full h-auto" />
-        </div>
-      </div>
+
     </div>
   );
 }
