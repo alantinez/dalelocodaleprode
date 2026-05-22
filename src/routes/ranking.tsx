@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/landing/Navbar";
 import mascota2 from "@/assets/mascota2.jpg.jpeg";
 import foto3 from "@/assets/foto3.jpeg";
-import { Lightbox } from "@/components/ui/Lightbox";
+import { Lightbox } from "@/components/Lightbox";
 
 export const Route = createFileRoute("/ranking")({
   head: () => ({
