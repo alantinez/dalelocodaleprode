@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Trophy } from "lucide-react";
-
+ 
 export function Footer() {
   return (
     <footer className="relative border-t border-border/60 py-10">
@@ -24,3 +24,4 @@ export function Footer() {
     </footer>
   );
 }
+ 
