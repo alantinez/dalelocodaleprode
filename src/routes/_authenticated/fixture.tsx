@@ -9,7 +9,7 @@ import { ChampionPicker } from "@/components/fixture/ChampionPicker";
 import { dayKey } from "@/lib/prode/scoring";
 import foto5 from "@/assets/foto5.jpg";
 import foto6 from "@/assets/foto6.jpg";
-import { Lightbox } from "@/components/Lightbox";
+import { Lightbox } from "@/components/ui/Lightbox";
 
 export const Route = createFileRoute("/_authenticated/fixture")({
   component: FixturePage,
