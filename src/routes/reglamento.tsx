@@ -1,17 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { motion } from "motion/react";
 import { Target, Trophy, TrendingUp, X, CheckCircle, Star } from "lucide-react";
-import { Navbar } from "@/components/landing/Navbar";
-
-export const Route = createFileRoute("/reglamento")({
-  component: ReglamentoPage,
-  head: () => ({
-    meta: [
-      { title: "Reglamento · Dale Dale" },
-      { name: "description", content: "Sistema de puntos, reglas y reglamento oficial del Prode Mundial 2026." },
-    ],
-  }),
-});
 
 const scoring = [
   {
@@ -66,30 +54,30 @@ const rules = [
   "El admin carga los resultados oficiales, que son los de FIFA.",
 ];
 
-function ReglamentoPage() {
+export function Reglamento() {
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-28 pb-20">
-        <div className="mb-10">
+    <section id="reglamento" className="relative py-20 sm:py-28">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-1.5 text-xs font-mono uppercase tracking-widest text-primary mb-4">
             <Target className="w-3 h-3" /> Sistema de puntos
           </div>
-          <h1 className="font-display font-bold text-4xl sm:text-5xl">
+          <h2 className="font-display font-bold text-3xl sm:text-5xl">
             Reglamento <span className="text-gradient-hero">oficial</span>
-          </h1>
-          <p className="mt-3 text-muted-foreground max-w-xl">
+          </h2>
+          <p className="mt-3 text-muted-foreground max-w-xl mx-auto">
             Cuánto sumás por cada pronóstico y cómo se reparte el pozo.
           </p>
         </div>
 
         {/* Sistema de puntos */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
           {scoring.map((s, i) => (
             <motion.div
               key={s.label}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
+              
               transition={{ duration: 0.4, delay: i * 0.08 }}
               className={`glass-strong rounded-2xl p-5 border ${s.border} bg-gradient-to-br ${s.bg} relative overflow-hidden`}
             >
@@ -108,12 +96,12 @@ function ReglamentoPage() {
           ))}
         </div>
 
-        {/* Gran Pronóstico */}
+        {/* Gran Pronóstico destacado */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.35 }}
-          className="glass-strong rounded-2xl p-6 border border-gold/40 bg-gradient-to-r from-gold/10 via-transparent to-primary/10 mb-8 flex flex-col sm:flex-row items-center gap-4"
+          
+          className="glass-strong rounded-2xl p-6 border border-gold/40 bg-gradient-to-r from-gold/10 via-transparent to-primary/10 mb-10 flex flex-col sm:flex-row items-center gap-4"
         >
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-gold/30 to-gold/10 border border-gold/40 flex items-center justify-center flex-shrink-0">
             <Trophy className="w-7 h-7 text-gold" />
@@ -121,8 +109,7 @@ function ReglamentoPage() {
           <div className="flex-1 text-center sm:text-left">
             <div className="font-display font-bold text-xl text-gold">Gran Pronóstico — Campeón del Mundial</div>
             <p className="text-sm text-muted-foreground mt-0.5">
-              Elegí el equipo que va a ganar el Mundial antes del primer partido. Si acertás, sumás{" "}
-              <span className="text-gold font-bold">+10 puntos</span> al final del torneo. Se bloquea el 11 de junio.
+              Elegí el equipo que va a ganar el Mundial antes del primer partido. Si acertás, sumás <span className="text-gold font-bold">+10 puntos</span> al final del torneo. Se bloquea el 11 de junio.
             </p>
           </div>
           <div className="font-display font-black text-5xl text-gold flex-shrink-0">+10</div>
@@ -132,12 +119,12 @@ function ReglamentoPage() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
+          
           className="glass rounded-2xl p-6 sm:p-8"
         >
-          <h2 className="font-display font-bold text-xl mb-5 flex items-center gap-2">
+          <h3 className="font-display font-bold text-xl mb-5 flex items-center gap-2">
             📋 Reglas generales
-          </h2>
+          </h3>
           <ul className="space-y-3">
             {rules.map((rule, i) => (
               <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
@@ -149,7 +136,7 @@ function ReglamentoPage() {
             ))}
           </ul>
         </motion.div>
-      </main>
-    </div>
+      </div>
+    </section>
   );
 }
