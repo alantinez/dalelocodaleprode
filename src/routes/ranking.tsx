@@ -1,193 +1,110 @@
-import { useMemo, useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CalendarDays, Filter, ChevronDown } from "lucide-react";
+import { Trophy, Medal, Loader2, ArrowLeft, Target, Flame, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
-import { MatchCard, type MatchWithTeams, type Prediction } from "@/components/fixture/MatchCard";
-import { ChampionPicker } from "@/components/fixture/ChampionPicker";
-import { dayKey } from "@/lib/prode/scoring";
-import foto5 from "@/assets/foto5.jpg";
-import foto6 from "@/assets/foto6.jpg";
+import { Navbar } from "@/components/landing/Navbar";
 import { Lightbox } from "@/components/ui/Lightbox";
+import mascota2 from "@/assets/mascota2.jpg.jpeg";
+import foto3 from "@/assets/foto3.jpeg";
 
-export const Route = createFileRoute("/_authenticated/fixture")({
-  component: FixturePage,
+export const Route = createFileRoute("/ranking")({
+  head: () => ({
+    meta: [
+      { title: "Ranking · Dale Dale" },
+      { name: "description", content: "Tabla de posiciones en vivo del PRODE Mundial 2026." },
+    ],
+  }),
+  component: RankingPage,
 });
 
-const GROUPS = ["TODOS", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"] as const;
-const PAGE_SIZE = 8;
-
-function FixturePage() {
-  const { user } = useAuth();
-  const [group, setGroup] = useState<(typeof GROUPS)[number]>("TODOS");
-  const [onlyPending, setOnlyPending] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-
-  const matchesQ = useQuery({
-    queryKey: ["matches"],
+function RankingPage() {
+  const q = useQuery({
+    queryKey: ["ranking"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("matches")
-        .select(`id, kickoff, stage, group, venue, status, home_score, away_score,
-           home:teams!matches_home_team_id_fkey(id,name,code,flag_url),
-           away:teams!matches_away_team_id_fkey(id,name,code,flag_url)`)
-        .order("kickoff", { ascending: true });
+        .from("profiles")
+        .select("id, display_name, avatar_url, total_points, exact_hits, current_streak")
+        .order("total_points", { ascending: false })
+        .order("exact_hits", { ascending: false })
+        .limit(100);
       if (error) throw error;
-      return data as unknown as MatchWithTeams[];
+      return data ?? [];
     },
+    refetchInterval: 30_000,
   });
-
-  const predsQ = useQuery({
-    queryKey: ["predictions", user?.id],
-    enabled: !!user,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("predictions")
-        .select("match_id, home_score, away_score, points, is_exact")
-        .eq("user_id", user!.id);
-      if (error) throw error;
-      return data as Prediction[];
-    },
-  });
-
-  const predByMatch = useMemo(() => {
-    const m = new Map<string, Prediction>();
-    (predsQ.data ?? []).forEach((p) => m.set(p.match_id, p));
-    return m;
-  }, [predsQ.data]);
-
-  const filtered = useMemo(() => {
-    return (matchesQ.data ?? []).filter((m) => {
-      if (group !== "TODOS" && m.group !== group) return false;
-      if (onlyPending) {
-        const has = predByMatch.has(m.id);
-        const locked = new Date(m.kickoff).getTime() <= Date.now();
-        if (has || locked) return false;
-      }
-      return true;
-    });
-  }, [matchesQ.data, group, onlyPending, predByMatch]);
-
-  const handleGroupChange = (g: typeof GROUPS[number]) => { setGroup(g); setVisibleCount(PAGE_SIZE); };
-  const handlePendingChange = (v: boolean) => { setOnlyPending(v); setVisibleCount(PAGE_SIZE); };
-
-  const visible = filtered.slice(0, visibleCount);
-  const hasMore = filtered.length > visibleCount;
-
-  const grouped = useMemo(() => {
-    const map = new Map<string, MatchWithTeams[]>();
-    for (const m of visible) {
-      const key = dayKey(new Date(m.kickoff));
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(m);
-    }
-    return Array.from(map.entries());
-  }, [visible]);
-
-  const totalPreds = predsQ.data?.length ?? 0;
-  const totalMatches = matchesQ.data?.length ?? 0;
 
   return (
-    <div className="mx-auto max-w-5xl px-4 sm:px-6">
+    <div className="min-h-screen bg-background">
+      <Navbar />
 
-      {/* Fotos decorativas fijas al costado — solo pantallas muy anchas */}
-      <div className="fixed top-1/3 left-4 w-32 z-10 pointer-events-none select-none hidden 2xl:block">
-        <div className="rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow -rotate-3">
-          <img src={foto5} alt="" className="w-full h-auto" />
-        </div>
+      {/* Fotos fijas en los márgenes — solo pantallas 2xl+ */}
+      <div className="fixed top-32 right-4 w-36 z-10 hidden 2xl:block">
+        <Lightbox src={mascota2} className="rounded-2xl overflow-hidden border-2 border-primary shadow-glow rotate-3" imgClassName="w-full h-auto" />
       </div>
-      <div className="fixed top-2/3 right-4 w-32 z-10 pointer-events-none select-none hidden 2xl:block">
-        <div className="rounded-2xl overflow-hidden border-2 border-secondary/30 shadow-glow rotate-3">
-          <img src={foto6} alt="" className="w-full h-auto" />
-        </div>
+      <div className="fixed top-[26rem] right-4 w-36 z-10 hidden 2xl:block">
+        <Lightbox src={foto3} className="rounded-2xl overflow-hidden border-2 border-secondary/40 shadow-glow -rotate-2" imgClassName="w-full h-auto" />
       </div>
 
-      <header className="mb-6 sm:mb-8">
-        <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-primary">
-          <CalendarDays className="w-4 h-4" />
-          Fase de grupos
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-28 pb-20">
+        <div className="mb-6">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition mb-3">
+            <ArrowLeft className="w-3.5 h-3.5" /> Volver
+          </Link>
+          <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight">
+            Tabla de <span className="text-gradient-hero">posiciones</span>
+          </h1>
+          <p className="text-muted-foreground mt-2">Actualizada en tiempo real · Top 100 participantes</p>
         </div>
-        <h1 className="font-display font-bold text-3xl sm:text-5xl mt-2 text-gradient-hero">
-          Fixture & Pronósticos
-        </h1>
-        <p className="text-muted-foreground mt-2 text-sm sm:text-base">
-          Cargá tu pronóstico antes de que arranque cada partido. Después, queda bloqueado.
-        </p>
-        <div className="mt-4 inline-flex items-center gap-2 glass rounded-xl px-3 py-1.5 text-xs font-mono">
-          <span className="text-secondary font-bold">{totalPreds}</span>
-          <span className="text-muted-foreground">/ {totalMatches} pronosticados</span>
-        </div>
-      </header>
 
-      <ChampionPicker />
-
-      {/* Filtros */}
-      <div className="sticky top-24 z-30 mb-6">
-        <div className="glass-strong rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center gap-3">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Filter className="w-3.5 h-3.5" /> Grupo
+        <div className="flex items-center mb-4">
+          <div className="hidden sm:flex items-center gap-2 glass rounded-xl px-3 py-2">
+            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            <span className="text-xs font-mono text-muted-foreground">LIVE</span>
           </div>
-          <div className="flex flex-wrap gap-1.5">
-            {GROUPS.map((g) => (
-              <button key={g} onClick={() => handleGroupChange(g)}
-                className={`px-3 py-1 rounded-lg text-xs font-mono font-bold transition ${
-                  group === g ? "bg-gradient-to-r from-primary to-secondary text-background shadow-glow" : "glass hover:bg-card"
-                }`}>
-                {g}
-              </button>
-            ))}
-          </div>
-          <label className="ml-auto inline-flex items-center gap-2 text-xs cursor-pointer select-none">
-            <input type="checkbox" checked={onlyPending} onChange={(e) => handlePendingChange(e.target.checked)} className="accent-primary" />
-            Solo pendientes
-          </label>
         </div>
-      </div>
 
-      {matchesQ.isLoading || predsQ.isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      ) : grouped.length === 0 ? (
-        <div className="text-center py-20 text-muted-foreground">No hay partidos con ese filtro.</div>
-      ) : (
-        <>
-          <div className="space-y-8">
-            {grouped.map(([day, list]) => (
-              <section key={day}>
-                <h2 className="font-display font-semibold text-sm uppercase tracking-widest text-muted-foreground mb-3 sticky top-44 sm:top-40 z-10">
-                  <span className="glass px-3 py-1 rounded-lg">{day}</span>
-                </h2>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {list.map((m) => (
-                    <MatchCard key={m.id} match={m} prediction={predByMatch.get(m.id) ?? null} />
-                  ))}
+        {q.isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        ) : !q.data || q.data.length === 0 ? (
+          <div className="glass-strong rounded-2xl p-12 text-center">
+            <Trophy className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">Todavía no hay participantes. ¡Sé el primero!</p>
+          </div>
+        ) : (
+          <div className="glass-strong rounded-2xl overflow-hidden">
+            <div className="grid grid-cols-[40px_1fr_60px_60px_60px] sm:grid-cols-[60px_1fr_100px_100px_100px] gap-3 px-4 sm:px-6 py-3 border-b border-border/50 text-[10px] sm:text-xs uppercase tracking-widest font-mono text-muted-foreground">
+              <div>#</div>
+              <div>Jugador</div>
+              <div className="text-right flex items-center justify-end gap-1"><TrendingUp className="w-3 h-3" /><span className="hidden sm:inline">Pts</span></div>
+              <div className="text-right flex items-center justify-end gap-1"><Target className="w-3 h-3" /><span className="hidden sm:inline">Exa</span></div>
+              <div className="text-right flex items-center justify-end gap-1"><Flame className="w-3 h-3" /><span className="hidden sm:inline">Rch</span></div>
+            </div>
+            {q.data.map((p, i) => {
+              const pos = i + 1;
+              const medal = pos === 1 ? "text-gold" : pos === 2 ? "text-silver" : pos === 3 ? "text-bronze" : "text-muted-foreground";
+              const initials = p.display_name?.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
+              return (
+                <div key={p.id} className="grid grid-cols-[40px_1fr_60px_60px_60px] sm:grid-cols-[60px_1fr_100px_100px_100px] gap-3 px-4 sm:px-6 py-4 items-center border-b border-border/30 last:border-0 hover:bg-card/50 transition">
+                  <div className={`font-display font-bold text-lg sm:text-xl ${medal} flex items-center gap-1`}>
+                    {pos <= 3 && <Medal className="w-4 h-4" />}{pos}
+                  </div>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden shrink-0">
+                      {p.avatar_url ? <img src={p.avatar_url} alt="" className="w-full h-full object-cover" /> : <span className="text-xs font-bold text-background">{initials}</span>}
+                    </div>
+                    <span className="font-medium truncate">{p.display_name}</span>
+                  </div>
+                  <div className="text-right font-mono font-bold text-base sm:text-lg text-primary">{p.total_points}</div>
+                  <div className="text-right font-mono text-sm text-muted-foreground">{p.exact_hits}</div>
+                  <div className="text-right font-mono text-sm text-muted-foreground">{p.current_streak}</div>
                 </div>
-              </section>
-            ))}
+              );
+            })}
           </div>
-
-          {hasMore && (
-            <div className="flex flex-col items-center gap-2 mt-10 mb-4">
-              <p className="text-xs text-muted-foreground font-mono">
-                Mostrando {visible.length} de {filtered.length} partidos
-              </p>
-              <button onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}
-                className="inline-flex items-center gap-2 glass-strong rounded-2xl px-6 py-3 text-sm font-semibold hover:bg-card transition active:scale-95 touch-manipulation">
-                <ChevronDown className="w-4 h-4" />
-                Ver más partidos
-              </button>
-            </div>
-          )}
-
-          {!hasMore && filtered.length > PAGE_SIZE && (
-            <div className="text-center mt-8 text-xs text-muted-foreground font-mono">
-              ✅ Todos los partidos cargados ({filtered.length})
-            </div>
-          )}
-        </>
-      )}
+        )}
+      </main>
     </div>
   );
 }
