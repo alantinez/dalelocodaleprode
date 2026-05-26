@@ -3,6 +3,7 @@ import { Navbar } from "@/components/landing/Navbar";
 import { Hero } from "@/components/landing/Hero";
 import { PrizePool } from "@/components/landing/PrizePool";
 import { Features } from "@/components/landing/Features";
+import { Reglamento } from "@/components/landing/Reglamento";
 import { RankingPreview } from "@/components/landing/RankingPreview";
 import { CtaBand } from "@/components/landing/CtaBand";
 import { TransferimeRaton } from "@/components/landing/TransferimeRaton";
@@ -17,12 +18,13 @@ function Index() {
     <div className="min-h-screen">
       <Navbar />
       <main>
-<Hero />
-<PrizePool />
-<Features />
-<RankingPreview />
-<TransferimeRaton />
-<CtaBand />
+        <Hero />
+        <PrizePool />
+        <Features />
+        <Reglamento />
+        <RankingPreview />
+        <TransferimeRaton />
+        <CtaBand />
       </main>
       <Footer />
     </div>
