@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import mascota from "@/assets/mascota-prode.png";
 import amigos from "@/assets/amigos.jpg";
 import foto2 from "@/assets/foto2.jpeg";
-import { Lightbox } from "@/components/Lightbox";
+import { Lightbox } from "@/components/ui/Lightbox";
 import { PRODE_CONFIG, formatARS } from "@/lib/prode/config";
 
 const CVU = "0000003100091909835217";
