@@ -220,7 +220,12 @@ function ChatPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
- 
+
+      {/* foto10 fija al costado — solo pantallas xl+ */}
+      <div className="fixed top-28 right-6 w-56 z-20 hidden xl:block">
+        <Lightbox src={foto10} className="rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-3 hover:rotate-0 transition-transform duration-300" imgClassName="w-full h-auto" />
+      </div>
+
       <div className="flex-1 flex flex-col mx-auto w-full max-w-3xl px-4 sm:px-6 pt-24 pb-0">
         {/* Header */}
         <div className="py-4 border-b border-border/50">
