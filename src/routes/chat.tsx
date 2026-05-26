@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Navbar } from "@/components/landing/Navbar";
 import foto10 from "@/assets/foto10.jpg";
-import { Lightbox } from "@/components/Lightbox";
+import { Lightbox } from "@/components/ui/Lightbox";
  
 export const Route = createFileRoute("/chat")({
   component: ChatPage,
@@ -234,16 +234,9 @@ function ChatPage() {
                 {messages.length} mensajes · Solo para participantes
               </p>
             </div>
-            <div className="ml-auto flex items-center gap-3">
-              <div className="hidden sm:block w-14 flex-shrink-0 pointer-events-none select-none">
-                <div className="rounded-xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-2">
-                  <Lightbox src={foto10} className="rounded-2xl overflow-hidden" imgClassName="w-full h-auto" />
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 glass rounded-xl px-3 py-1.5">
-                <div className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
-                <span className="text-xs font-mono text-muted-foreground">LIVE</span>
-              </div>
+            <div className="ml-auto flex items-center gap-1.5 glass rounded-xl px-3 py-1.5">
+              <div className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
+              <span className="text-xs font-mono text-muted-foreground">LIVE</span>
             </div>
           </div>
         </div>
@@ -439,4 +432,3 @@ function ChatPage() {
     </div>
   );
 }
- 
