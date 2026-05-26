@@ -1,141 +1,135 @@
 import { motion } from "motion/react";
-import { Target, Trophy, TrendingUp, X, CheckCircle, Star } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Sparkles, Trophy, Users, CheckCircle, ArrowRight, MessageCircle } from "lucide-react";
+import heroImg from "@/assets/hero-mundial.jpg";
+import { Countdown } from "./Countdown";
+import { PRODE_CONFIG, formatARS } from "@/lib/prode/config";
+import { useAuth } from "@/hooks/use-auth";
+import foto7 from "@/assets/foto7.jpg";
+import { Lightbox } from "@/components/ui/Lightbox";
 
-const scoring = [
-  {
-    icon: Star,
-    points: 5,
-    label: "Resultado exacto",
-    desc: "Acertás el marcador exacto del partido",
-    example: "Predecís 2-1 y termina 2-1",
-    color: "text-gold",
-    bg: "from-gold/20 to-gold/5",
-    border: "border-gold/30",
-  },
-  {
-    icon: TrendingUp,
-    points: 3,
-    label: "Diferencia correcta",
-    desc: "Acertás la diferencia de goles pero no el marcador exacto",
-    example: "Predecís 3-1 y termina 2-0 (ambas +2)",
-    color: "text-primary",
-    bg: "from-primary/20 to-primary/5",
-    border: "border-primary/30",
-  },
-  {
-    icon: CheckCircle,
-    points: 2,
-    label: "Ganador o empate",
-    desc: "Acertás quién gana o si empata, pero la diferencia no",
-    example: "Predecís 2-0 y termina 1-0 (mismo ganador)",
-    color: "text-secondary",
-    bg: "from-secondary/20 to-secondary/5",
-    border: "border-secondary/30",
-  },
-  {
-    icon: X,
-    points: 0,
-    label: "Sin puntos",
-    desc: "Predijiste mal el resultado",
-    example: "Predecís 1-0 y termina 0-1",
-    color: "text-muted-foreground",
-    bg: "from-muted/20 to-muted/5",
-    border: "border-border/40",
-  },
-];
+const WHATSAPP_NUMBER = "5491168556733";
+const WHATSAPP_MSG = encodeURIComponent("Hola Alan! Ya te transferí para el prode 🏆 ¿Me confirmás el pago?");
+const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${WHATSAPP_MSG}`;
 
-const rules = [
-  "Cada pronóstico se bloquea automáticamente cuando arranca el partido.",
-  "Solo participantes que confirmen su pago pueden predecir.",
-  "El campeón del prode es quien más puntos acumule al final del torneo.",
-  "En caso de empate en puntos, gana quien tenga más exactos.",
-  "El Gran Pronóstico (campeón del Mundial) suma 10 puntos extra si acertás.",
-  "Los premios se distribuyen: 60% al 1°, 30% al 2° y 10% al 3°.",
-  "El admin carga los resultados oficiales, que son los de FIFA.",
-];
+export function Hero() {
+  const { user, profile } = useAuth();
+  const isPaid = profile?.paid === true;
+  const isLoggedIn = !!user && profile !== null;
 
-export function Reglamento() {
   return (
-    <section id="reglamento" className="relative py-20 sm:py-28">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-1.5 text-xs font-mono uppercase tracking-widest text-primary mb-4">
-            <Target className="w-3 h-3" /> Sistema de puntos
-          </div>
-          <h2 className="font-display font-bold text-3xl sm:text-5xl">
-            Reglamento <span className="text-gradient-hero">oficial</span>
-          </h2>
-          <p className="mt-3 text-muted-foreground max-w-xl mx-auto">
-            Cuánto sumás por cada pronóstico y cómo se reparte el pozo.
-          </p>
-        </div>
+    <section className="relative pt-32 sm:pt-40 pb-16 sm:pb-24 overflow-hidden">
+      <div className="absolute inset-0 -z-10">
+        <img src={heroImg} alt="Trofeo del Mundial 2026 iluminado en un estadio" width={1920} height={1080} className="w-full h-full object-cover opacity-40" />
+        <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/60 to-background" />
+        <div className="absolute inset-0 grid-bg opacity-30" />
+      </div>
 
-        {/* Sistema de puntos */}
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-12">
-          {scoring.map((s, i) => (
-            <motion.div
-              key={s.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              
-              transition={{ duration: 0.4, delay: i * 0.08 }}
-              className={`glass-strong rounded-2xl p-5 border ${s.border} bg-gradient-to-br ${s.bg} relative overflow-hidden`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <s.icon className={`w-5 h-5 ${s.color}`} />
-                <span className={`font-display font-black text-4xl ${s.color}`}>
-                  {s.points > 0 ? `+${s.points}` : "0"}
-                </span>
+      <div className="mx-auto max-w-7xl px-4 sm:px-6">
+        <div className="grid lg:grid-cols-[1.2fr_1fr] gap-10 lg:gap-8 items-start">
+          <div>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
+              className="inline-flex items-center gap-2 glass rounded-full px-4 py-1.5 text-xs font-mono uppercase tracking-widest text-primary mb-6">
+              <Sparkles className="w-3.5 h-3.5" />
+              Edición FIFA 2026 · USA · México · Canadá
+            </motion.div>
+            <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.1 }}
+              className="font-display font-bold text-5xl sm:text-6xl lg:text-7xl leading-[0.95] tracking-tight">
+              El prode <br className="hidden sm:block" />
+              <span className="text-gradient-hero">definitivo.</span><br />
+              Por la gloria eterna.
+            </motion.h1>
+            <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.2 }}
+              className="mt-6 text-base sm:text-lg text-muted-foreground max-w-xl">
+              Predecí cada partido, sumá puntos en vivo, escalá el ranking y llevate el pozo.
+              Estadísticas premium, logros desbloqueables y el bardeo más sano del grupo.
+            </motion.p>
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.3 }}
+              className="mt-8 flex flex-col sm:flex-row gap-3">
+              {!isLoggedIn && (
+                <>
+                  <a href="/auth?redirect=transferir" className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary px-6 py-4 font-semibold text-background shadow-glow hover:scale-[1.02] transition">
+                    <Trophy className="w-5 h-5" />
+                    Unirme al Prode · {formatARS(PRODE_CONFIG.entryFee)}
+                  </a>
+                  <Link to="/fixture" className="inline-flex items-center justify-center gap-2 rounded-2xl glass px-6 py-4 font-semibold hover:bg-card transition">
+                    Ver fixture completo
+                  </Link>
+                </>
+              )}
+              {isLoggedIn && !isPaid && (
+                <>
+                  <a href="/#transferir" className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-gold/80 to-primary px-6 py-4 font-semibold text-background shadow-glow hover:scale-[1.02] transition">
+                    <Trophy className="w-5 h-5" />
+                    Confirmar pago · {formatARS(PRODE_CONFIG.entryFee)}
+                  </a>
+                  <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-green-600 hover:bg-green-500 px-6 py-4 font-semibold text-white transition hover:scale-[1.02]">
+                    <MessageCircle className="w-5 h-5" />
+                    Ya pagué → Avisarle a Alan
+                  </a>
+                </>
+              )}
+              {isLoggedIn && isPaid && (
+                <>
+                  <Link to="/fixture" className="group inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary px-6 py-4 font-semibold text-background shadow-glow hover:scale-[1.02] transition">
+                    <ArrowRight className="w-5 h-5" />
+                    Ir al fixture
+                  </Link>
+                  <div className="inline-flex items-center justify-center gap-2 rounded-2xl glass px-6 py-4 font-semibold text-secondary">
+                    <CheckCircle className="w-5 h-5" />
+                    Pago confirmado ✅
+                  </div>
+                </>
+              )}
+            </motion.div>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.5 }}
+              className="mt-8 flex items-center gap-6 text-sm">
+              <div className="flex items-center gap-2">
+                <Users className="w-4 h-4 text-secondary" />
+                <span className="font-mono"><b className="text-foreground">{PRODE_CONFIG.participants}</b> jugadores</span>
               </div>
-              <div className={`font-display font-bold text-base ${s.color}`}>{s.label}</div>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{s.desc}</p>
-              <div className="mt-3 glass rounded-lg px-2.5 py-1.5 text-[10px] font-mono text-muted-foreground">
-                Ej: {s.example}
+              <div className="h-4 w-px bg-border" />
+              <div className="flex items-center gap-2">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-secondary" />
+                </span>
+                <span className="font-mono text-muted-foreground">Pozo en vivo · <b className="text-gradient-gold">creciendo 🔥</b></span>
               </div>
             </motion.div>
-          ))}
+          </div>
+
+          <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.3 }}
+            className="flex flex-col gap-4">
+            <div className="relative">
+              <div className="absolute -inset-4 bg-gradient-to-br from-primary/30 to-secondary/30 rounded-3xl blur-2xl" />
+              <div className="relative glass-strong rounded-3xl p-6 sm:p-8 animate-float">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Arranca el Mundial en</span>
+                  <span className="text-xs font-mono text-secondary">LIVE</span>
+                </div>
+                <Countdown />
+                <div className="mt-6 pt-6 border-t border-border/60 grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-xs text-muted-foreground">Inauguración</div>
+                    <div className="font-display font-semibold mt-0.5">11 Jun 2026</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-muted-foreground">Estadio</div>
+                    <div className="font-display font-semibold mt-0.5">Azteca, México</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* foto7 con lightbox */}
+            <Lightbox
+              src={foto7}
+              className="relative rounded-3xl overflow-hidden border-2 border-secondary/40 shadow-glow"
+              imgClassName="w-full h-auto max-h-64 object-cover"
+            />
+          </motion.div>
         </div>
-
-        {/* Gran Pronóstico destacado */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          
-          className="glass-strong rounded-2xl p-6 border border-gold/40 bg-gradient-to-r from-gold/10 via-transparent to-primary/10 mb-10 flex flex-col sm:flex-row items-center gap-4"
-        >
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-gold/30 to-gold/10 border border-gold/40 flex items-center justify-center flex-shrink-0">
-            <Trophy className="w-7 h-7 text-gold" />
-          </div>
-          <div className="flex-1 text-center sm:text-left">
-            <div className="font-display font-bold text-xl text-gold">Gran Pronóstico — Campeón del Mundial</div>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Elegí el equipo que va a ganar el Mundial antes del primer partido. Si acertás, sumás <span className="text-gold font-bold">+10 puntos</span> al final del torneo. Se bloquea el 11 de junio.
-            </p>
-          </div>
-          <div className="font-display font-black text-5xl text-gold flex-shrink-0">+10</div>
-        </motion.div>
-
-        {/* Reglas */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          
-          className="glass rounded-2xl p-6 sm:p-8"
-        >
-          <h3 className="font-display font-bold text-xl mb-5 flex items-center gap-2">
-            📋 Reglas generales
-          </h3>
-          <ul className="space-y-3">
-            {rules.map((rule, i) => (
-              <li key={i} className="flex items-start gap-3 text-sm text-muted-foreground">
-                <span className="font-mono text-xs text-primary font-bold mt-0.5 flex-shrink-0">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                {rule}
-              </li>
-            ))}
-          </ul>
-        </motion.div>
       </div>
     </section>
   );
