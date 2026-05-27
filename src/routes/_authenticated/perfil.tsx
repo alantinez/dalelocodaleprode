@@ -57,9 +57,36 @@ function PerfilPage() {
   };
 
   const stats = [
-    { icon: Trophy, label: "Puntos totales", value: profile.total_points, color: "text-gradient-gold" },
-    { icon: Target, label: "Exactos", value: profile.exact_hits, color: "text-primary" },
-    { icon: Flame, label: "Racha actual", value: profile.current_streak, color: "text-secondary" },
+    {
+      icon: Trophy,
+      label: "Puntos totales",
+      value: profile.total_points,
+      gradient: "from-yellow-400/20 to-orange-400/10",
+      border: "border-yellow-400/30",
+      iconColor: "text-yellow-400",
+      valueColor: "text-yellow-400",
+      glow: "shadow-[0_0_20px_rgba(250,204,21,0.15)]",
+    },
+    {
+      icon: Target,
+      label: "Exactos",
+      value: profile.exact_hits,
+      gradient: "from-primary/20 to-cyan-400/10",
+      border: "border-primary/30",
+      iconColor: "text-primary",
+      valueColor: "text-primary",
+      glow: "shadow-[0_0_20px_rgba(99,102,241,0.15)]",
+    },
+    {
+      icon: Flame,
+      label: "Racha actual",
+      value: profile.current_streak,
+      gradient: "from-secondary/20 to-emerald-400/10",
+      border: "border-secondary/30",
+      iconColor: "text-secondary",
+      valueColor: "text-secondary",
+      glow: "shadow-[0_0_20px_rgba(16,185,129,0.15)]",
+    },
   ];
 
   return (
@@ -69,10 +96,12 @@ function PerfilPage() {
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         className="glass-strong rounded-3xl p-6 sm:p-10 relative overflow-hidden">
         <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-secondary/10 blur-3xl pointer-events-none" />
 
         <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-6">
-          <div className="relative group">
-            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden shadow-glow">
+          {/* Avatar */}
+          <div className="relative group flex-shrink-0">
+            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden shadow-glow ring-2 ring-primary/30">
               {profile.avatar_url
                 ? <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
                 : <span className="font-display font-bold text-3xl text-background">{initials}</span>
@@ -84,27 +113,47 @@ function PerfilPage() {
             </button>
             <input ref={fileRef} type="file" accept="image/*" className="hidden"
               onChange={(e) => e.target.files?.[0] && handleAvatar(e.target.files[0])} />
+            <p className="text-center text-[10px] font-mono text-muted-foreground mt-1.5 opacity-0 group-hover:opacity-100 transition">
+              Cambiar foto
+            </p>
           </div>
 
-          <div className="flex-1 w-full">
+          <div className="flex-1 w-full min-w-0">
             <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Tu perfil</p>
-            <h1 className="font-display font-bold text-3xl sm:text-4xl mt-1">{profile.display_name}</h1>
-            <p className="text-sm text-muted-foreground mt-1">{user.email}</p>
+            <h1 className="font-display font-bold text-3xl sm:text-4xl mt-1 truncate">{profile.display_name}</h1>
+            <p className="text-sm text-muted-foreground mt-1 truncate">{user.email}</p>
           </div>
 
           <button onClick={async () => { await signOut(); toast.success("Sesión cerrada"); }}
-            className="inline-flex items-center gap-2 glass rounded-xl px-4 py-2 text-sm font-medium hover:bg-destructive/20 hover:text-destructive transition">
+            className="inline-flex items-center gap-2 glass rounded-xl px-4 py-2 text-sm font-medium hover:bg-destructive/20 hover:text-destructive transition flex-shrink-0">
             <LogOut className="w-4 h-4" /> Salir
           </button>
         </div>
 
+        {/* Stats mejoradas */}
         <div className="grid grid-cols-3 gap-3 sm:gap-4 mt-8">
-          {stats.map((s) => (
-            <div key={s.label} className="glass rounded-xl p-4 sm:p-5 text-center">
-              <s.icon className={`w-5 h-5 mx-auto ${s.color}`} />
-              <div className={`font-display font-bold text-2xl sm:text-3xl mt-2 ${s.color}`}>{s.value}</div>
-              <div className="text-[10px] sm:text-xs uppercase tracking-widest text-muted-foreground mt-1">{s.label}</div>
-            </div>
+          {stats.map((s, i) => (
+            <motion.div
+              key={s.label}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.05 + i * 0.07 }}
+              className={`relative rounded-2xl p-4 sm:p-6 text-center border bg-gradient-to-br ${s.gradient} ${s.border} ${s.glow} overflow-hidden`}
+            >
+              {/* Glow blob */}
+              <div className={`absolute -top-4 -right-4 w-16 h-16 rounded-full blur-2xl opacity-40 bg-gradient-to-br ${s.gradient}`} />
+              <div className="relative">
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br ${s.gradient} border ${s.border} flex items-center justify-center mx-auto mb-3`}>
+                  <s.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${s.iconColor}`} />
+                </div>
+                <div className={`font-display font-black text-3xl sm:text-4xl ${s.valueColor} tabular-nums`}>
+                  {s.value}
+                </div>
+                <div className="text-[9px] sm:text-[10px] uppercase tracking-widest text-muted-foreground mt-1.5 font-mono">
+                  {s.label}
+                </div>
+              </div>
+            </motion.div>
           ))}
         </div>
       </motion.div>
@@ -114,7 +163,7 @@ function PerfilPage() {
         <ChampionPicker />
       </motion.div>
 
-      {/* Datos + foto8 lado a lado */}
+      {/* Datos + foto8 */}
       <div className="flex gap-4 items-start mt-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
           className="flex-1 glass-strong rounded-3xl p-6 sm:p-8">
@@ -133,16 +182,19 @@ function PerfilPage() {
           </div>
         </motion.div>
 
-        {/* foto8 al costado */}
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}
           className="hidden sm:block w-36 flex-shrink-0 self-center">
-          <Lightbox src={foto8} className="rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-2 hover:rotate-0 transition-transform duration-300" imgClassName="w-full h-auto" />
+          <Lightbox
+            src={foto8}
+            className="rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-2 hover:rotate-0 transition-transform duration-300"
+            imgClassName="w-full h-auto"
+          />
         </motion.div>
       </div>
 
       {/* Logros */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-        className="glass-strong rounded-3xl p-6 sm:p-8 mt-6">
+        className="glass-strong rounded-3xl p-6 sm:p-8 mt-6 mb-6">
         <AchievementsGrid userId={user.id} />
       </motion.div>
     </div>
