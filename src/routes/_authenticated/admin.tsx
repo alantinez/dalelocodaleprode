@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Loader2, Save, ShieldCheck, ShieldAlert, Crown,
   Users, CheckCircle2, XCircle, Clock, Trophy, Search,
-  Trash2, Plus, Swords, CalendarDays,
+  Trash2, Plus, Swords, CalendarDays, Camera,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,18 +43,19 @@ type Participant = {
 };
 
 const KNOCKOUT_STAGES = [
-  { key: "r32",   label: "Octavos de Final",       short: "R32" },
-  { key: "r16",   label: "Dieciseisavos de Final",  short: "R16" },
-  { key: "qf",    label: "Cuartos de Final",        short: "QF"  },
-  { key: "sf",    label: "Semifinales",             short: "SF"  },
-  { key: "third", label: "3° y 4° Puesto",          short: "3°"  },
-  { key: "final", label: "Gran Final",              short: "🏆"  },
+  { key: "r32",   label: "Octavos de Final" },
+  { key: "r16",   label: "Dieciseisavos de Final" },
+  { key: "qf",    label: "Cuartos de Final" },
+  { key: "sf",    label: "Semifinales" },
+  { key: "third", label: "3° y 4° Puesto" },
+  { key: "final", label: "Gran Final" },
 ];
 
 const STAGE_LABEL: Record<string, string> = Object.fromEntries(
   KNOCKOUT_STAGES.map((s) => [s.key, s.label])
 );
 
+/* ─── PAGE ─── */
 function AdminPage() {
   const { isAdmin, user, loading } = useAuth();
   const [tab, setTab] = useState<"participantes" | "resultados" | "knockout" | "campeon">("participantes");
@@ -83,7 +84,7 @@ function AdminPage() {
           <p className="text-sm text-muted-foreground mb-6">Esta sección es solo para administradores.</p>
           <Button onClick={() => claimMut.mutate()} disabled={claimMut.isPending || !user}
             className="w-full bg-gradient-to-r from-primary to-secondary text-background font-semibold">
-            {claimMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Crown className="w-4 h-4 mr-2" /> Reclamar admin</>}
+            {claimMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Crown className="w-4 h-4 mr-2" />Reclamar admin</>}
           </Button>
         </div>
       </div>
@@ -112,7 +113,7 @@ function AdminPage() {
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition ${
                 tab === t.key ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
               }`}>
-              {t.icon} {t.label}
+              {t.icon}{t.label}
             </button>
           ))}
         </div>
@@ -126,16 +127,196 @@ function AdminPage() {
   );
 }
 
-/* ──────────────────────────────────────────────
-   KNOCKOUT — crear y ver partidos de eliminación
-────────────────────────────────────────────── */
+/* ─── SNAPSHOT BUTTON ─── */
+function SnapshotButton() {
+  const qc = useQueryClient();
+  const [label, setLabel] = useState("");
+
+  const mut = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc("admin_snapshot_ranking", {
+        p_label: label.trim() || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("📸 Snapshot del ranking guardado");
+      setLabel("");
+      qc.invalidateQueries({ queryKey: ["ranking-history-latest"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="glass rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-3 border border-primary/20">
+      <Camera className="w-5 h-5 text-primary flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-mono uppercase tracking-widest text-primary mb-0.5">Snapshot del ranking</p>
+        <p className="text-xs text-muted-foreground">Guardá el estado actual para mostrar las flechas ↑↓ en el ranking.</p>
+      </div>
+      <input
+        value={label}
+        onChange={(e) => setLabel(e.target.value)}
+        placeholder="Etiqueta (ej: Fecha 3)"
+        className="glass rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 w-full sm:w-44"
+      />
+      <Button
+        onClick={() => mut.mutate()}
+        disabled={mut.isPending}
+        size="sm"
+        className="bg-primary text-background font-semibold whitespace-nowrap"
+      >
+        {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar snapshot"}
+      </Button>
+    </div>
+  );
+}
+
+/* ─── RESULTADOS ─── */
+function AdminMatches() {
+  const qc = useQueryClient();
+  const [filter, setFilter] = useState<"todos" | "pendientes" | "finalizados">("pendientes");
+
+  const matchesQ = useQuery({
+    queryKey: ["admin-matches"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("matches")
+        .select(`id, kickoff, group, stage, venue, status, home_score, away_score,
+           home:teams!matches_home_team_id_fkey(name,code,flag_url),
+           away:teams!matches_away_team_id_fkey(name,code,flag_url)`)
+        .order("kickoff", { ascending: true });
+      if (error) throw error;
+      return data as unknown as AdminMatch[];
+    },
+  });
+
+  const saveMut = useMutation({
+    mutationFn: async (vars: { id: string; home: number; away: number }) => {
+      const { error } = await supabase.from("matches")
+        .update({ home_score: vars.home, away_score: vars.away, status: "finished" })
+        .eq("id", vars.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Resultado guardado · puntos recalculados");
+      qc.invalidateQueries({ queryKey: ["admin-matches"] });
+      qc.invalidateQueries({ queryKey: ["ranking"] });
+      qc.invalidateQueries({ queryKey: ["matches"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const filtered = useMemo(() => {
+    const list = matchesQ.data ?? [];
+    return list.filter((m) => {
+      if (filter === "pendientes") return m.status !== "finished";
+      if (filter === "finalizados") return m.status === "finished";
+      return true;
+    });
+  }, [matchesQ.data, filter]);
+
+  return (
+    <div>
+      <SnapshotButton />
+
+      <p className="text-muted-foreground mb-4">
+        Al guardar un partido, se recalculan los puntos automáticamente.
+        Después de cargar todos los resultados de una fecha, guardá el snapshot para actualizar las flechas del ranking.
+      </p>
+
+      <div className="flex gap-2 mb-6">
+        {(["pendientes", "finalizados", "todos"] as const).map((f) => (
+          <button key={f} onClick={() => setFilter(f)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium uppercase tracking-wider transition ${
+              filter === f ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
+            }`}>
+            {f}
+          </button>
+        ))}
+      </div>
+
+      {matchesQ.isLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((m) => (
+            <AdminMatchRow
+              key={m.id}
+              match={m}
+              onSave={(h, a) => saveMut.mutate({ id: m.id, home: h, away: a })}
+              saving={saveMut.isPending}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminMatchRow({ match, onSave, saving }: {
+  match: AdminMatch;
+  onSave: (home: number, away: number) => void;
+  saving: boolean;
+}) {
+  const [home, setHome] = useState<string>(match.home_score?.toString() ?? "");
+  const [away, setAway] = useState<string>(match.away_score?.toString() ?? "");
+  const isFinished = match.status === "finished";
+
+  return (
+    <div className={`glass-strong rounded-2xl p-4 sm:p-5 ${isFinished ? "ring-1 ring-primary/40" : ""}`}>
+      <div className="flex items-center justify-between mb-3 text-[10px] sm:text-xs font-mono uppercase tracking-widest text-muted-foreground">
+        <span>{formatKickoff(new Date(match.kickoff))}</span>
+        <div className="flex items-center gap-2">
+          {match.group && <span className="text-primary">Grupo {match.group}</span>}
+          {match.stage !== "group" && <span className="text-secondary">{STAGE_LABEL[match.stage] ?? match.stage}</span>}
+          {isFinished && <span className="px-2 py-0.5 rounded bg-primary/15 text-primary">FINAL</span>}
+        </div>
+      </div>
+      <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
+        <div className="flex items-center gap-2 justify-end min-w-0">
+          <span className="font-semibold truncate text-sm sm:text-base text-right">{match.home?.name}</span>
+          {match.home?.flag_url && <img src={match.home.flag_url} alt="" className="w-6 h-6 rounded shrink-0" />}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <Input type="number" inputMode="numeric" min={0} max={20} value={home}
+            onChange={(e) => setHome(e.target.value)}
+            className="w-14 h-12 text-center font-display text-2xl font-bold" />
+          <span className="text-muted-foreground">·</span>
+          <Input type="number" inputMode="numeric" min={0} max={20} value={away}
+            onChange={(e) => setAway(e.target.value)}
+            className="w-14 h-12 text-center font-display text-2xl font-bold" />
+        </div>
+        <div className="flex items-center gap-2 min-w-0">
+          {match.away?.flag_url && <img src={match.away.flag_url} alt="" className="w-6 h-6 rounded shrink-0" />}
+          <span className="font-semibold truncate text-sm sm:text-base">{match.away?.name}</span>
+        </div>
+      </div>
+      <div className="mt-3 flex justify-end">
+        <Button size="sm" onClick={() => {
+          const h = parseInt(home, 10), a = parseInt(away, 10);
+          if (isNaN(h) || isNaN(a) || h < 0 || a < 0) { toast.error("Ingresá goles válidos"); return; }
+          onSave(h, a);
+        }} disabled={saving} className="bg-gradient-to-r from-primary to-secondary text-background font-semibold">
+          {saving
+            ? <Loader2 className="w-4 h-4 animate-spin" />
+            : <><Save className="w-3.5 h-3.5 mr-1.5" />{isFinished ? "Actualizar" : "Guardar final"}</>}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── KNOCKOUT ─── */
 function AdminKnockout() {
   const qc = useQueryClient();
-  const [stage, setStage]       = useState("r32");
-  const [homeId, setHomeId]     = useState("");
-  const [awayId, setAwayId]     = useState("");
+  const [stage, setStage]        = useState("r32");
+  const [homeId, setHomeId]      = useState("");
+  const [awayId, setAwayId]      = useState("");
   const [kickoffStr, setKickoff] = useState("");
-  const [venue, setVenue]       = useState("");
+  const [venue, setVenue]        = useState("");
   const [teamSearch, setTeamSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -166,13 +347,12 @@ function AdminKnockout() {
   const createMut = useMutation({
     mutationFn: async () => {
       if (!homeId || !awayId || !kickoffStr) throw new Error("Completá todos los campos obligatorios");
-      if (homeId === awayId) throw new Error("El local y el visitante deben ser equipos distintos");
-      const kickoffISO = new Date(kickoffStr).toISOString();
+      if (homeId === awayId) throw new Error("El local y visitante deben ser distintos");
       const { error } = await supabase.rpc("admin_create_match", {
         p_stage: stage,
         p_home_team_id: homeId,
         p_away_team_id: awayId,
-        p_kickoff: kickoffISO,
+        p_kickoff: new Date(kickoffStr).toISOString(),
         p_venue: venue || null,
       });
       if (error) throw error;
@@ -200,13 +380,12 @@ function AdminKnockout() {
     onError: (e: Error) => { toast.error(e.message); setDeletingId(null); },
   });
 
-  const filteredTeams = useMemo(() => {
-    return (teamsQ.data ?? []).filter((t) =>
+  const filteredTeams = useMemo(() =>
+    (teamsQ.data ?? []).filter((t) =>
       teamSearch === "" ||
       t.name.toLowerCase().includes(teamSearch.toLowerCase()) ||
       t.code.toLowerCase().includes(teamSearch.toLowerCase())
-    );
-  }, [teamsQ.data, teamSearch]);
+    ), [teamsQ.data, teamSearch]);
 
   const teamById = useMemo(() => {
     const m = new Map<string, string>();
@@ -214,7 +393,6 @@ function AdminKnockout() {
     return m;
   }, [teamsQ.data]);
 
-  // Agrupar partidos existentes por stage
   const byStage = useMemo(() => {
     const map = new Map<string, AdminMatch[]>();
     for (const m of knockoutQ.data ?? []) {
@@ -226,13 +404,12 @@ function AdminKnockout() {
 
   return (
     <div className="space-y-8">
-      {/* Modal confirmación borrado */}
       {deletingId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
           <div className="glass-strong rounded-2xl p-6 max-w-sm w-full text-center">
             <Trash2 className="w-10 h-10 text-destructive mx-auto mb-3" />
             <h3 className="font-display font-bold text-xl mb-2">¿Eliminar partido?</h3>
-            <p className="text-sm text-muted-foreground mb-6">Se eliminan también los pronósticos de este partido. No se puede deshacer.</p>
+            <p className="text-sm text-muted-foreground mb-6">Se eliminan también los pronósticos. No se puede deshacer.</p>
             <div className="flex gap-3">
               <button onClick={() => setDeletingId(null)} className="flex-1 glass rounded-xl py-2.5 text-sm font-medium hover:bg-card transition">Cancelar</button>
               <button onClick={() => deleteMut.mutate(deletingId)} disabled={deleteMut.isPending}
@@ -244,108 +421,86 @@ function AdminKnockout() {
         </div>
       )}
 
-      {/* Formulario nuevo partido */}
       <div className="glass-strong rounded-2xl p-5 border border-primary/20">
         <div className="flex items-center gap-2 mb-4">
           <Plus className="w-4 h-4 text-primary" />
           <h3 className="font-display font-bold text-lg">Agregar partido knockout</h3>
         </div>
-
         <div className="grid sm:grid-cols-2 gap-4">
-          {/* Fase */}
           <div className="sm:col-span-2">
             <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">Fase</label>
             <div className="flex flex-wrap gap-2">
               {KNOCKOUT_STAGES.map((s) => (
                 <button key={s.key} type="button" onClick={() => setStage(s.key)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
-                    stage === s.key ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
-                  }`}>
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${stage === s.key ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"}`}>
                   {s.label}
                 </button>
               ))}
             </div>
           </div>
-
-          {/* Buscador de equipos */}
           <div className="sm:col-span-2">
             <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">Buscar equipo</label>
-            <input value={teamSearch} onChange={(e) => setTeamSearch(e.target.value)}
-              placeholder="Escribí para filtrar equipos..."
+            <input value={teamSearch} onChange={(e) => setTeamSearch(e.target.value)} placeholder="Escribí para filtrar..."
               className="w-full glass rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
           </div>
-
-          {/* Local */}
           <div>
             <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">
               Local {homeId && <span className="text-primary ml-1">✓ {teamById.get(homeId)}</span>}
             </label>
             <div className="glass rounded-xl max-h-36 overflow-y-auto divide-y divide-border/30">
-              {teamsQ.isLoading ? <div className="p-3 text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto text-primary" /></div>
-                : filteredTeams.map((t) => (
-                  <button key={t.id} type="button" onClick={() => setHomeId(t.id)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-card transition ${homeId === t.id ? "bg-primary/20 text-primary" : ""}`}>
-                    {t.flag_url && <img src={t.flag_url} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />}
-                    <span className="truncate">{t.name}</span>
-                    <span className="ml-auto font-mono text-[10px] text-muted-foreground">{t.group}</span>
-                  </button>
-                ))
-              }
+              {filteredTeams.map((t) => (
+                <button key={t.id} type="button" onClick={() => setHomeId(t.id)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-card transition ${homeId === t.id ? "bg-primary/20 text-primary" : ""}`}>
+                  {t.flag_url && <img src={t.flag_url} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />}
+                  <span className="truncate">{t.name}</span>
+                  <span className="ml-auto font-mono text-[10px] text-muted-foreground">{t.group}</span>
+                </button>
+              ))}
             </div>
           </div>
-
-          {/* Visitante */}
           <div>
             <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">
               Visitante {awayId && <span className="text-secondary ml-1">✓ {teamById.get(awayId)}</span>}
             </label>
             <div className="glass rounded-xl max-h-36 overflow-y-auto divide-y divide-border/30">
-              {teamsQ.isLoading ? <div className="p-3 text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto text-primary" /></div>
-                : filteredTeams.map((t) => (
-                  <button key={t.id} type="button" onClick={() => setAwayId(t.id)}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-card transition ${awayId === t.id ? "bg-secondary/20 text-secondary" : ""}`}>
-                    {t.flag_url && <img src={t.flag_url} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />}
-                    <span className="truncate">{t.name}</span>
-                    <span className="ml-auto font-mono text-[10px] text-muted-foreground">{t.group}</span>
-                  </button>
-                ))
-              }
+              {filteredTeams.map((t) => (
+                <button key={t.id} type="button" onClick={() => setAwayId(t.id)}
+                  className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-card transition ${awayId === t.id ? "bg-secondary/20 text-secondary" : ""}`}>
+                  {t.flag_url && <img src={t.flag_url} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />}
+                  <span className="truncate">{t.name}</span>
+                  <span className="ml-auto font-mono text-[10px] text-muted-foreground">{t.group}</span>
+                </button>
+              ))}
             </div>
           </div>
-
-          {/* Kickoff */}
           <div>
             <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">Fecha y hora</label>
             <input type="datetime-local" value={kickoffStr} onChange={(e) => setKickoff(e.target.value)}
               className="w-full glass rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
           </div>
-
-          {/* Venue */}
           <div>
             <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">Estadio (opcional)</label>
             <input type="text" value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Ej: MetLife Stadium"
               className="w-full glass rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
           </div>
         </div>
-
         <div className="mt-5 flex justify-end">
           <Button onClick={() => createMut.mutate()} disabled={createMut.isPending || !homeId || !awayId || !kickoffStr}
             className="bg-gradient-to-r from-primary to-secondary text-background font-semibold gap-2">
-            {createMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Swords className="w-4 h-4" /> Crear partido</>}
+            {createMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Swords className="w-4 h-4" />Crear partido</>}
           </Button>
         </div>
       </div>
 
-      {/* Partidos knockout existentes */}
       <div>
         <h3 className="font-display font-bold text-lg mb-4 flex items-center gap-2">
-          <CalendarDays className="w-4 h-4 text-primary" /> Partidos cargados
+          <CalendarDays className="w-4 h-4 text-primary" />Partidos cargados
         </h3>
         {knockoutQ.isLoading ? (
           <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
         ) : byStage.size === 0 ? (
           <div className="glass-strong rounded-2xl p-10 text-center text-muted-foreground text-sm">
-            Todavía no hay partidos knockout cargados. Usá el formulario de arriba para agregar los cruces.
+            Todavía no hay partidos knockout cargados.
           </div>
         ) : (
           <div className="space-y-6">
@@ -355,11 +510,11 @@ function AdminKnockout() {
                 <div className="space-y-2">
                   {byStage.get(s.key)!.map((m) => (
                     <div key={m.id} className="glass-strong rounded-xl p-3 flex items-center gap-3">
-                      <div className="flex-1 flex items-center gap-2 text-sm font-semibold">
-                        {m.home?.flag_url && <img src={m.home.flag_url} alt="" className="w-5 h-5 rounded object-cover" />}
+                      <div className="flex-1 flex items-center gap-2 text-sm font-semibold min-w-0">
+                        {m.home?.flag_url && <img src={m.home.flag_url} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />}
                         <span className="truncate">{m.home?.name}</span>
-                        <span className="text-muted-foreground mx-1 font-normal">vs</span>
-                        {m.away?.flag_url && <img src={m.away.flag_url} alt="" className="w-5 h-5 rounded object-cover" />}
+                        <span className="text-muted-foreground mx-1 font-normal flex-shrink-0">vs</span>
+                        {m.away?.flag_url && <img src={m.away.flag_url} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />}
                         <span className="truncate">{m.away?.name}</span>
                       </div>
                       <span className="text-xs font-mono text-muted-foreground hidden sm:block flex-shrink-0">
@@ -386,7 +541,7 @@ function AdminKnockout() {
   );
 }
 
-/* ──────────────────────── CAMPEÓN ─────────────────────── */
+/* ─── CAMPEÓN ─── */
 function AdminChampion() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -406,7 +561,7 @@ function AdminChampion() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("¡Campeón declarado! 10 pts otorgados a los ganadores ✅");
+      toast.success("¡Campeón declarado! 10 pts otorgados ✅");
       qc.invalidateQueries();
     },
     onError: (e: Error) => toast.error(e.message),
@@ -417,39 +572,37 @@ function AdminChampion() {
   );
 
   return (
-    <div>
-      <div className="glass-strong rounded-2xl p-5 mb-6 border border-gold/30">
-        <h3 className="font-display font-bold text-xl text-gold mb-1">🏆 Declarar campeón del Mundial</h3>
-        <p className="text-sm text-muted-foreground mb-5">
-          Usá esto cuando termine el torneo. Al confirmar, se otorgan <b>10 puntos</b> automáticamente a todos los que eligieron este equipo.
-          <br /><span className="text-destructive font-semibold">⚠️ Esta acción no se puede deshacer.</span>
-        </p>
-        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar equipo..."
-          className="w-full glass rounded-xl px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-gold/40" />
-        {teamsQ.isLoading ? (
-          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1">
-            {teams.map((t: any) => (
-              <button key={t.id}
-                onClick={() => { if (confirm(`¿Declarar a ${t.name} como CAMPEÓN?\n\nEsto otorgará 10 pts. No se puede deshacer.`)) setChampMut.mutate(t.id); }}
-                disabled={setChampMut.isPending}
-                className="flex items-center gap-2.5 glass rounded-xl px-3 py-2.5 hover:bg-card hover:ring-1 hover:ring-gold/50 transition active:scale-95 text-left">
-                {t.flag_url && <img src={t.flag_url} alt="" className="w-7 h-7 rounded-md object-cover flex-shrink-0" />}
-                <div className="min-w-0">
-                  <div className="text-sm font-medium truncate">{t.name}</div>
-                  <div className="text-[10px] font-mono text-muted-foreground">Grupo {t.group}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+    <div className="glass-strong rounded-2xl p-5 border border-gold/30">
+      <h3 className="font-display font-bold text-xl text-gold mb-1">🏆 Declarar campeón del Mundial</h3>
+      <p className="text-sm text-muted-foreground mb-5">
+        Usá esto cuando termine el torneo. Al confirmar, se otorgan <b>10 puntos</b> a todos los que lo eligieron.
+        <br /><span className="text-destructive font-semibold">⚠️ Esta acción no se puede deshacer.</span>
+      </p>
+      <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar equipo..."
+        className="w-full glass rounded-xl px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-gold/40" />
+      {teamsQ.isLoading ? (
+        <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1">
+          {teams.map((t: any) => (
+            <button key={t.id}
+              onClick={() => { if (confirm(`¿Declarar a ${t.name} como CAMPEÓN?\n\nOtorgará 10 pts. No se puede deshacer.`)) setChampMut.mutate(t.id); }}
+              disabled={setChampMut.isPending}
+              className="flex items-center gap-2.5 glass rounded-xl px-3 py-2.5 hover:bg-card hover:ring-1 hover:ring-gold/50 transition active:scale-95 text-left">
+              {t.flag_url && <img src={t.flag_url} alt="" className="w-7 h-7 rounded-md object-cover flex-shrink-0" />}
+              <div className="min-w-0">
+                <div className="text-sm font-medium truncate">{t.name}</div>
+                <div className="text-[10px] font-mono text-muted-foreground">Grupo {t.group}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-/* ──────────────────────── PARTICIPANTES ─────────────────────── */
+/* ─── PARTICIPANTES ─── */
 function AdminParticipants() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -562,7 +715,9 @@ function AdminParticipants() {
           {filtered.map((p) => (
             <div key={p.id} className={`glass-strong rounded-2xl p-4 flex items-center gap-3 ${p.paid ? "ring-1 ring-secondary/30" : ""}`}>
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center overflow-hidden flex-shrink-0">
-                {p.avatar_url ? <img src={p.avatar_url} alt="" className="w-full h-full object-cover" /> : <span className="font-bold text-sm">{p.display_name[0]?.toUpperCase()}</span>}
+                {p.avatar_url
+                  ? <img src={p.avatar_url} alt="" className="w-full h-full object-cover" />
+                  : <span className="font-bold text-sm">{p.display_name[0]?.toUpperCase()}</span>}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm truncate">{p.display_name}</div>
@@ -581,9 +736,12 @@ function AdminParticipants() {
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition active:scale-95 flex-shrink-0 ${
                   p.paid ? "bg-secondary/20 text-secondary hover:bg-destructive/20 hover:text-destructive" : "bg-primary/20 text-primary hover:bg-secondary/20 hover:text-secondary"
                 }`}>
-                {p.paid ? <><CheckCircle2 className="w-4 h-4" /><span className="hidden sm:inline">Pagó</span></> : <><XCircle className="w-4 h-4" /><span className="hidden sm:inline">Pendiente</span></>}
+                {p.paid
+                  ? <><CheckCircle2 className="w-4 h-4" /><span className="hidden sm:inline">Pagó</span></>
+                  : <><XCircle className="w-4 h-4" /><span className="hidden sm:inline">Pendiente</span></>}
               </button>
-              <button onClick={() => setDeletingId(p.id)} className="w-9 h-9 flex items-center justify-center rounded-xl glass hover:bg-destructive/20 hover:text-destructive transition flex-shrink-0">
+              <button onClick={() => setDeletingId(p.id)}
+                className="w-9 h-9 flex items-center justify-center rounded-xl glass hover:bg-destructive/20 hover:text-destructive transition flex-shrink-0">
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
@@ -593,144 +751,3 @@ function AdminParticipants() {
     </div>
   );
 }
-
-/* ──────────────────────── RESULTADOS ─────────────────────── */
-function AdminMatches() {
-  const qc = useQueryClient();
-  const [filter, setFilter] = useState<"todos" | "pendientes" | "finalizados">("pendientes");
-
-  const matchesQ = useQuery({
-    queryKey: ["admin-matches"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("matches")
-        .select(`id, kickoff, group, stage, venue, status, home_score, away_score,
-           home:teams!matches_home_team_id_fkey(name,code,flag_url),
-           away:teams!matches_away_team_id_fkey(name,code,flag_url)`)
-        .order("kickoff", { ascending: true });
-      if (error) throw error;
-      return data as unknown as AdminMatch[];
-    },
-  });
-
-  const saveMut = useMutation({
-    mutationFn: async (vars: { id: string; home: number; away: number }) => {
-      const { error } = await supabase.from("matches")
-        .update({ home_score: vars.home, away_score: vars.away, status: "finished" })
-        .eq("id", vars.id);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Resultado guardado · puntos recalculados");
-      qc.invalidateQueries({ queryKey: ["admin-matches"] });
-      qc.invalidateQueries({ queryKey: ["ranking"] });
-      qc.invalidateQueries({ queryKey: ["matches"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  const filtered = useMemo(() => {
-    const list = matchesQ.data ?? [];
-    return list.filter((m) => {
-      if (filter === "pendientes") return m.status !== "finished";
-      if (filter === "finalizados") return m.status === "finished";
-      return true;
-    });
-  }, [matchesQ.data, filter]);
-
-  return (
-    <div>
-<p className="text-muted-foreground mb-4">Al guardar un partido, se recalculan los puntos automáticamente.</p>
-<SnapshotButton />
-      <div className="flex gap-2 mb-6">
-        {(["pendientes", "finalizados", "todos"] as const).map((f) => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium uppercase tracking-wider transition ${filter === f ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"}`}>
-            {f}
-          </button>
-        ))}
-      </div>
-      {matchesQ.isLoading ? (
-        <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map((m) => (
-            <AdminMatchRow key={m.id} match={m} onSave={(h, a) => saveMut.mutate({ id: m.id, home: h, away: a })} saving={saveMut.isPending} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AdminMatchRow({ match, onSave, saving }: { match: AdminMatch; onSave: (home: number, away: number) => void; saving: boolean }) {
-  const [home, setHome] = useState<string>(match.home_score?.toString() ?? "");
-  const [away, setAway] = useState<string>(match.away_score?.toString() ?? "");
-  const isFinished = match.status === "finished";
-
-  return (
-    <div className={`glass-strong rounded-2xl p-4 sm:p-5 ${isFinished ? "ring-1 ring-primary/40" : ""}`}>
-      <div className="flex items-center justify-between mb-3 text-[10px] sm:text-xs font-mono uppercase tracking-widest text-muted-foreground">
-        <span>{formatKickoff(new Date(match.kickoff))}</span>
-        <div className="flex items-center gap-2">
-          {match.group && <span className="text-primary">Grupo {match.group}</span>}
-          {match.stage !== "group" && <span className="text-secondary">{STAGE_LABEL[match.stage] ?? match.stage}</span>}
-          {isFinished && <span className="px-2 py-0.5 rounded bg-primary/15 text-primary">FINAL</span>}
-        </div>
-      </div>
-      <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
-        <div className="flex items-center gap-2 justify-end min-w-0">
-          <span className="font-semibold truncate text-sm sm:text-base text-right">{match.home?.name}</span>
-          {match.home?.flag_url && <img src={match.home.flag_url} alt="" className="w-6 h-6 rounded shrink-0" />}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Input type="number" inputMode="numeric" min={0} max={20} value={home} onChange={(e) => setHome(e.target.value)} className="w-14 h-12 text-center font-display text-2xl font-bold" />
-          <span className="text-muted-foreground">·</span>
-          <Input type="number" inputMode="numeric" min={0} max={20} value={away} onChange={(e) => setAway(e.target.value)} className="w-14 h-12 text-center font-display text-2xl font-bold" />
-        </div>
-        <div className="flex items-center gap-2 min-w-0">
-          {match.away?.flag_url && <img src={match.away.flag_url} alt="" className="w-6 h-6 rounded shrink-0" />}
-          <span className="font-semibold truncate text-sm sm:text-base">{match.away?.name}</span>
-        </div>
-      </div>
-      <div className="mt-3 flex justify-end">
-        <Button size="sm" onClick={() => {
-          const h = parseInt(home, 10), a = parseInt(away, 10);
-          if (isNaN(h) || isNaN(a) || h < 0 || a < 0) { toast.error("Ingresá goles válidos"); return; }
-          onSave(h, a);
-        }} disabled={saving} className="bg-gradient-to-r from-primary to-secondary text-background font-semibold">
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-3.5 h-3.5 mr-1.5" />{isFinished ? "Actualizar" : "Guardar final"}</>}
-        </Button>
-      </div>
-    </div>
-  );
-function SnapshotButton() {
-  const qc = useQueryClient();
-  const [label, setLabel] = useState("");
-  const mut = useMutation({
-    mutationFn: async () => {
-      const { error } = await supabase.rpc("admin_snapshot_ranking", { p_label: label || null });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("📸 Snapshot del ranking guardado");
-      setLabel("");
-      qc.invalidateQueries({ queryKey: ["ranking-history-latest"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-  return (
-    <div className="glass rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-3 border border-primary/20">
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-mono uppercase tracking-widest text-primary mb-1">📸 Snapshot del ranking</p>
-        <p className="text-xs text-muted-foreground">Guardá el estado actual para mostrar las flechas ↑↓ en el ranking.</p>
-      </div>
-      <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Etiqueta (ej: Fecha 3)"
-        className="glass rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 w-full sm:w-40" />
-      <Button onClick={() => mut.mutate()} disabled={mut.isPending} size="sm"
-        className="bg-primary text-background font-semibold whitespace-nowrap">
-        {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar snapshot"}
-      </Button>
-    </div>
-  );
-}}
