@@ -1,351 +1,202 @@
-import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Minus, Plus, MapPin, Check, Loader2, Trophy, Lock, ChevronDown, ChevronUp, Users } from "lucide-react";
+import { createFileRoute } from "@tanstack/react-router";
+import { useRef, useState } from "react";
+import { motion } from "motion/react";
+import { Camera, LogOut, Trophy, Target, Flame, Loader2, Save } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { MatchCountdown } from "./MatchCountdown";
-import { formatKickoff } from "@/lib/prode/scoring";
+import { AchievementsGrid } from "@/components/achievements/AchievementsGrid";
+import { ChampionPicker } from "@/components/fixture/ChampionPicker";
+import foto8 from "@/assets/foto8.jpg";
+import { Lightbox } from "@/components/ui/Lightbox";
 
-export type Team = {
-  id: string;
-  name: string;
-  code: string;
-  flag_url: string | null;
-};
+export const Route = createFileRoute("/_authenticated/perfil")({
+  component: PerfilPage,
+  head: () => ({
+    meta: [{ title: "Mi perfil · Dale Dale" }],
+  }),
+});
 
-export type MatchWithTeams = {
-  id: string;
-  kickoff: string;
-  stage: string;
-  group: string | null;
-  venue: string | null;
-  status: string;
-  home_score: number | null;
-  away_score: number | null;
-  home: Team | null;
-  away: Team | null;
-};
+function PerfilPage() {
+  const { user, profile, refreshProfile, signOut } = useAuth();
+  const [name, setName] = useState(profile?.display_name ?? "");
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-export type Prediction = {
-  match_id: string;
-  home_score: number;
-  away_score: number;
-  points: number;
-  is_exact: boolean;
-};
+  if (!user || !profile) return null;
 
-type AllPrediction = {
-  home_score: number;
-  away_score: number;
-  points: number | null;
-  is_exact: boolean | null;
-  profiles: { display_name: string; avatar_url: string | null } | null;
-};
+  const initials = profile.display_name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
 
-function TeamInfo({ team }: { team: Team | null }) {
-  return (
-    <div className="flex flex-col items-center gap-2 w-24 sm:w-28">
-      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden ring-2 ring-border/60 bg-card flex items-center justify-center flex-shrink-0">
-        {team?.flag_url ? (
-          <img src={team.flag_url} alt={team.name} className="w-full h-full object-cover" />
-        ) : (
-          <span className="font-mono text-xs">{team?.code ?? "?"}</span>
-        )}
-      </div>
-      <div className="text-center">
-        <div className="font-display font-semibold text-sm leading-tight">{team?.name ?? "—"}</div>
-        <div className="font-mono text-[10px] text-muted-foreground tracking-widest mt-0.5">{team?.code}</div>
-      </div>
-    </div>
-  );
-}
+  const handleAvatar = async (file: File) => {
+    setUploading(true);
+    try {
+      const ext = file.name.split(".").pop() ?? "jpg";
+      const path = `${user.id}/avatar-${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const { data: { publicUrl } } = supabase.storage.from("avatars").getPublicUrl(path);
+      const { error: profErr } = await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", user.id);
+      if (profErr) throw profErr;
+      await refreshProfile();
+      toast.success("Avatar actualizado");
+    } catch (err) {
+      toast.error("No se pudo subir el avatar", { description: err instanceof Error ? err.message : undefined });
+    } finally {
+      setUploading(false);
+    }
+  };
 
-function ScoreInput({
-  score, onInc, onDec, disabled,
-}: {
-  score: number;
-  onInc: () => void;
-  onDec: () => void;
-  disabled: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={onDec}
-        disabled={disabled || score <= 0}
-        className="w-11 h-11 rounded-xl glass hover:bg-card active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition touch-manipulation"
-      >
-        <Minus className="w-4 h-4" />
-      </button>
-      <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30 flex items-center justify-center font-mono font-bold text-2xl tabular-nums">
-        {score}
-      </div>
-      <button
-        type="button"
-        onClick={onInc}
-        disabled={disabled || score >= 20}
-        className="w-11 h-11 rounded-xl glass hover:bg-card active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition touch-manipulation"
-      >
-        <Plus className="w-4 h-4" />
-      </button>
-    </div>
-  );
-}
+  const handleSave = async () => {
+    if (!name.trim()) return;
+    setSaving(true);
+    const { error } = await supabase.from("profiles").update({ display_name: name.trim() }).eq("id", user.id);
+    if (error) { toast.error("No se pudo guardar"); }
+    else { await refreshProfile(); toast.success("Perfil actualizado"); }
+    setSaving(false);
+  };
 
-function AllPredictions({ matchId, finished }: { matchId: string; finished: boolean }) {
-  const [open, setOpen] = useState(false);
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["all-predictions", matchId],
-    enabled: open,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("predictions")
-        .select("home_score, away_score, points, is_exact, profiles(display_name, avatar_url)")
-        .eq("match_id", matchId)
-        .order("points", { ascending: false, nullsFirst: false });
-      if (error) throw error;
-      return (data ?? []) as unknown as AllPrediction[];
+  const stats = [
+    {
+      icon: Trophy,
+      label: "Puntos totales",
+      value: profile.total_points,
+      gradient: "from-yellow-400/20 to-orange-400/10",
+      border: "border-yellow-400/30",
+      iconColor: "text-yellow-400",
+      valueColor: "text-yellow-400",
+      glow: "shadow-[0_0_20px_rgba(250,204,21,0.15)]",
     },
-  });
+    {
+      icon: Target,
+      label: "Exactos",
+      value: profile.exact_hits,
+      gradient: "from-primary/20 to-cyan-400/10",
+      border: "border-primary/30",
+      iconColor: "text-primary",
+      valueColor: "text-primary",
+      glow: "shadow-[0_0_20px_rgba(99,102,241,0.15)]",
+    },
+    {
+      icon: Flame,
+      label: "Racha actual",
+      value: profile.current_streak,
+      gradient: "from-secondary/20 to-emerald-400/10",
+      border: "border-secondary/30",
+      iconColor: "text-secondary",
+      valueColor: "text-secondary",
+      glow: "shadow-[0_0_20px_rgba(16,185,129,0.15)]",
+    },
+  ];
 
   return (
-    <div className="mt-3 border-t border-border/40 pt-3">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition"
-      >
-        <span className="flex items-center gap-1.5">
-          <Users className="w-3.5 h-3.5" />
-          Ver pronósticos del grupo
-        </span>
-        {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-      </button>
+    <div className="mx-auto max-w-4xl px-4 sm:px-6">
 
-      {open && (
-        <div className="mt-2 space-y-1.5">
-          {isLoading ? (
-            <div className="flex justify-center py-3">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+      {/* Card principal */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+        className="glass-strong rounded-3xl p-6 sm:p-10 relative overflow-hidden">
+        <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-secondary/10 blur-3xl pointer-events-none" />
+
+        <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-6">
+          {/* Avatar */}
+          <div className="relative group flex-shrink-0">
+            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden shadow-glow ring-2 ring-primary/30">
+              {profile.avatar_url
+                ? <img src={profile.avatar_url} alt={profile.display_name} className="w-full h-full object-cover" />
+                : <span className="font-display font-bold text-3xl text-background">{initials}</span>
+              }
             </div>
-          ) : !data || data.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-2">Nadie predijo este partido.</p>
-          ) : (
-            data.map((p, i) => {
-              const initials = p.profiles?.display_name?.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
-              const pts = p.points;
-              const ptsColor = pts === null ? "text-muted-foreground" : p.is_exact ? "text-gold" : pts > 0 ? "text-secondary" : "text-destructive";
-              return (
-                <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded-lg glass">
-                  {/* Avatar */}
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {p.profiles?.avatar_url
-                      ? <img src={p.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
-                      : <span className="text-[8px] font-bold text-background">{initials}</span>
-                    }
-                  </div>
-                  {/* Name */}
-                  <span className="text-xs font-medium truncate flex-1">{p.profiles?.display_name ?? "—"}</span>
-                  {/* Prediction */}
-                  <span className="font-mono text-xs text-foreground font-bold">
-                    {p.home_score}-{p.away_score}
-                  </span>
-                  {/* Points (only if finished) */}
-                  {finished && pts !== null && (
-                    <span className={`font-mono text-xs font-bold ${ptsColor} w-12 text-right`}>
-                      {p.is_exact ? "⭐" : ""} +{pts}pts
-                    </span>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-export function MatchCard({
-  match,
-  prediction,
-}: {
-  match: MatchWithTeams;
-  prediction: Prediction | null;
-}) {
-  const { user, profile, isAdmin } = useAuth();
-  const canPredict = isAdmin || (profile?.paid ?? false);
-  const queryClient = useQueryClient();
-  const kickoff = new Date(match.kickoff);
-  const [locked, setLocked] = useState(() => Date.now() >= kickoff.getTime());
-  const [home, setHome] = useState(prediction?.home_score ?? 0);
-  const [away, setAway] = useState(prediction?.away_score ?? 0);
-  const finished = match.status === "finished" && match.home_score !== null;
-
-  useEffect(() => {
-    setHome(prediction?.home_score ?? 0);
-    setAway(prediction?.away_score ?? 0);
-  }, [prediction?.home_score, prediction?.away_score]);
-
-  useEffect(() => {
-    if (locked) return;
-    const id = setInterval(() => {
-      if (Date.now() >= kickoff.getTime()) {
-        setLocked(true);
-        clearInterval(id);
-      }
-    }, 1000);
-    return () => clearInterval(id);
-  }, [locked, kickoff]);
-
-  const dirty =
-    !prediction ||
-    prediction.home_score !== home ||
-    prediction.away_score !== away;
-
-  const mutation = useMutation({
-    mutationFn: async () => {
-      if (!user) throw new Error("No autenticado");
-      const { error } = await supabase
-        .from("predictions")
-        .upsert(
-          { user_id: user.id, match_id: match.id, home_score: home, away_score: away },
-          { onConflict: "user_id,match_id" },
-        );
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Pronóstico guardado");
-      queryClient.invalidateQueries({ queryKey: ["predictions"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  return (
-    <div className="glass rounded-2xl p-4 sm:p-5 relative overflow-hidden">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
-
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4 text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          {match.group && (
-            <span className="px-2 py-0.5 rounded-md bg-primary/15 text-primary font-mono font-bold">
-              Grupo {match.group}
-            </span>
-          )}
-          <span className="font-mono">{formatKickoff(kickoff)}</span>
-        </div>
-        {finished ? (
-          <div className="inline-flex items-center gap-1.5 text-xs font-mono text-secondary">
-            <Trophy className="w-3 h-3" /> Final
+            <button onClick={() => fileRef.current?.click()} disabled={uploading}
+              className="absolute inset-0 rounded-2xl bg-background/70 backdrop-blur opacity-0 group-hover:opacity-100 transition flex items-center justify-center">
+              {uploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Camera className="w-6 h-6" />}
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" className="hidden"
+              onChange={(e) => e.target.files?.[0] && handleAvatar(e.target.files[0])} />
+            <p className="text-center text-[10px] font-mono text-muted-foreground mt-1.5 opacity-0 group-hover:opacity-100 transition">
+              Cambiar foto
+            </p>
           </div>
-        ) : (
-          <MatchCountdown kickoff={kickoff} />
-        )}
-      </div>
 
-      {/* Teams + Scores */}
-      <div className="flex items-center justify-between gap-2">
-        <TeamInfo team={match.home} />
+          <div className="flex-1 w-full min-w-0">
+            <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Tu perfil</p>
+            <h1 className="font-display font-bold text-3xl sm:text-4xl mt-1 truncate">{profile.display_name}</h1>
+            <p className="text-sm text-muted-foreground mt-1 truncate">{user.email}</p>
+          </div>
 
-        <div className="flex flex-col items-center gap-3 flex-1">
-          {finished && (
-            <div className="font-mono text-lg font-bold text-secondary">
-              {match.home_score} - {match.away_score}
-            </div>
-          )}
-
-          {!locked && canPredict && (
-            <div className="flex items-center gap-2">
-              <ScoreInput
-                score={home}
-                onInc={() => setHome((s) => Math.min(20, s + 1))}
-                onDec={() => setHome((s) => Math.max(0, s - 1))}
-                disabled={false}
-              />
-              <span className="font-bold text-muted-foreground/60 text-sm">-</span>
-              <ScoreInput
-                score={away}
-                onInc={() => setAway((s) => Math.min(20, s + 1))}
-                onDec={() => setAway((s) => Math.max(0, s - 1))}
-                disabled={false}
-              />
-            </div>
-          )}
-
-          {!locked && !canPredict && (
-            <div className="flex items-center gap-1.5 text-xs text-gold font-mono px-3 py-2 glass rounded-xl">
-              <Lock className="w-3.5 h-3.5" /> Confirmá tu pago
-            </div>
-          )}
-
-          {locked && !finished && (
-            <div className="text-xs text-muted-foreground font-mono px-3 py-1.5 glass rounded-lg">
-              {prediction ? `${prediction.home_score} - ${prediction.away_score}` : "Sin pronóstico"}
-            </div>
-          )}
-        </div>
-
-        <TeamInfo team={match.away} />
-      </div>
-
-      {/* Venue */}
-      {match.venue && (
-        <div className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <MapPin className="w-3 h-3 flex-shrink-0" />
-          <span className="truncate">{match.venue}</span>
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <div className="text-xs text-muted-foreground">
-          {prediction ? (
-            finished ? (
-              <span>
-                Tu pron:{" "}
-                <span className="font-mono text-foreground">
-                  {prediction.home_score}-{prediction.away_score}
-                </span>
-                {" · "}
-                <span className={`font-bold ${
-                  prediction.is_exact ? "text-gold" : prediction.points > 0 ? "text-secondary" : "text-destructive"
-                }`}>
-                  +{prediction.points} pts
-                </span>
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-secondary">
-                <Check className="w-3 h-3" /> Guardado
-              </span>
-            )
-          ) : (
-            <span>{locked ? "Sin pronóstico" : canPredict ? "Cargá tu pronóstico" : ""}</span>
-          )}
-        </div>
-
-        {!locked && canPredict && (
-          <button
-            type="button"
-            onClick={() => mutation.mutate()}
-            disabled={!dirty || mutation.isPending}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-primary to-secondary px-4 py-2.5 text-xs font-semibold text-background shadow-glow disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition touch-manipulation min-w-[90px] justify-center"
-          >
-            {mutation.isPending ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Check className="w-3.5 h-3.5" />
-            )}
-            {prediction ? "Actualizar" : "Predecir"}
+          <button onClick={async () => { await signOut(); toast.success("Sesión cerrada"); }}
+            className="inline-flex items-center gap-2 glass rounded-xl px-4 py-2 text-sm font-medium hover:bg-destructive/20 hover:text-destructive transition flex-shrink-0">
+            <LogOut className="w-4 h-4" /> Salir
           </button>
-        )}
+        </div>
+
+        {/* Stats mejoradas */}
+        <div className="grid grid-cols-3 gap-3 sm:gap-4 mt-8">
+          {stats.map((s, i) => (
+            <motion.div
+              key={s.label}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.05 + i * 0.07 }}
+              className={`relative rounded-2xl p-4 sm:p-6 text-center border bg-gradient-to-br ${s.gradient} ${s.border} ${s.glow} overflow-hidden`}
+            >
+              {/* Glow blob */}
+              <div className={`absolute -top-4 -right-4 w-16 h-16 rounded-full blur-2xl opacity-40 bg-gradient-to-br ${s.gradient}`} />
+              <div className="relative">
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br ${s.gradient} border ${s.border} flex items-center justify-center mx-auto mb-3`}>
+                  <s.icon className={`w-4 h-4 sm:w-5 sm:h-5 ${s.iconColor}`} />
+                </div>
+                <div className={`font-display font-black text-3xl sm:text-4xl ${s.valueColor} tabular-nums`}>
+                  {s.value}
+                </div>
+                <div className="text-[9px] sm:text-[10px] uppercase tracking-widest text-muted-foreground mt-1.5 font-mono">
+                  {s.label}
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* Campeón */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mt-6">
+        <ChampionPicker />
+      </motion.div>
+
+      {/* Datos + foto8 */}
+      <div className="flex gap-4 items-start mt-6">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
+          className="flex-1 glass-strong rounded-3xl p-6 sm:p-8">
+          <h2 className="font-display font-semibold text-lg mb-4">Datos del perfil</h2>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Nombre a mostrar</label>
+              <input value={name} onChange={(e) => setName(e.target.value)}
+                className="mt-1.5 w-full px-4 py-3 rounded-xl bg-input border border-border focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30 transition" />
+            </div>
+            <button onClick={handleSave} disabled={saving || name.trim() === profile.display_name}
+              className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary py-2.5 px-5 font-semibold text-background shadow-glow hover:scale-[1.01] transition disabled:opacity-50 disabled:cursor-not-allowed">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              Guardar cambios
+            </button>
+          </div>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}
+          className="hidden sm:block w-36 flex-shrink-0 self-center">
+          <Lightbox
+            src={foto8}
+            className="rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-2 hover:rotate-0 transition-transform duration-300"
+            imgClassName="w-full h-auto"
+          />
+        </motion.div>
       </div>
 
-      {/* Pronósticos públicos — solo visibles después del kickoff */}
-      {locked && <AllPredictions matchId={match.id} finished={finished} />}
+      {/* Logros */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
+        className="glass-strong rounded-3xl p-6 sm:p-8 mt-6 mb-6">
+        <AchievementsGrid userId={user.id} />
+      </motion.div>
     </div>
   );
 }
