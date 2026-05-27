@@ -640,7 +640,8 @@ function AdminMatches() {
 
   return (
     <div>
-      <p className="text-muted-foreground mb-6">Al guardar un partido, se recalculan los puntos automáticamente.</p>
+<p className="text-muted-foreground mb-4">Al guardar un partido, se recalculan los puntos automáticamente.</p>
+<SnapshotButton />
       <div className="flex gap-2 mb-6">
         {(["pendientes", "finalizados", "todos"] as const).map((f) => (
           <button key={f} onClick={() => setFilter(f)}
@@ -703,4 +704,33 @@ function AdminMatchRow({ match, onSave, saving }: { match: AdminMatch; onSave: (
       </div>
     </div>
   );
-}
+function SnapshotButton() {
+  const qc = useQueryClient();
+  const [label, setLabel] = useState("");
+  const mut = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc("admin_snapshot_ranking", { p_label: label || null });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("📸 Snapshot del ranking guardado");
+      setLabel("");
+      qc.invalidateQueries({ queryKey: ["ranking-history-latest"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  return (
+    <div className="glass rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-3 border border-primary/20">
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-mono uppercase tracking-widest text-primary mb-1">📸 Snapshot del ranking</p>
+        <p className="text-xs text-muted-foreground">Guardá el estado actual para mostrar las flechas ↑↓ en el ranking.</p>
+      </div>
+      <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Etiqueta (ej: Fecha 3)"
+        className="glass rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 w-full sm:w-40" />
+      <Button onClick={() => mut.mutate()} disabled={mut.isPending} size="sm"
+        className="bg-primary text-background font-semibold whitespace-nowrap">
+        {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar snapshot"}
+      </Button>
+    </div>
+  );
+}}
