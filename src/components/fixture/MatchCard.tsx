@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Minus, Plus, MapPin, Check, Loader2, Trophy, Lock } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Minus, Plus, MapPin, Check, Loader2, Trophy, Lock, ChevronDown, ChevronUp, Users } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -33,6 +33,14 @@ export type Prediction = {
   away_score: number;
   points: number;
   is_exact: boolean;
+};
+
+type AllPrediction = {
+  home_score: number;
+  away_score: number;
+  points: number | null;
+  is_exact: boolean | null;
+  profiles: { display_name: string; avatar_url: string | null } | null;
 };
 
 function TeamInfo({ team }: { team: Team | null }) {
@@ -82,6 +90,81 @@ function ScoreInput({
       >
         <Plus className="w-4 h-4" />
       </button>
+    </div>
+  );
+}
+
+function AllPredictions({ matchId, finished }: { matchId: string; finished: boolean }) {
+  const [open, setOpen] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["all-predictions", matchId],
+    enabled: open,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("predictions")
+        .select("home_score, away_score, points, is_exact, profiles(display_name, avatar_url)")
+        .eq("match_id", matchId)
+        .order("points", { ascending: false, nullsFirst: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as AllPrediction[];
+    },
+  });
+
+  return (
+    <div className="mt-3 border-t border-border/40 pt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition"
+      >
+        <span className="flex items-center gap-1.5">
+          <Users className="w-3.5 h-3.5" />
+          Ver pronósticos del grupo
+        </span>
+        {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+      </button>
+
+      {open && (
+        <div className="mt-2 space-y-1.5">
+          {isLoading ? (
+            <div className="flex justify-center py-3">
+              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+            </div>
+          ) : !data || data.length === 0 ? (
+            <p className="text-xs text-muted-foreground text-center py-2">Nadie predijo este partido.</p>
+          ) : (
+            data.map((p, i) => {
+              const initials = p.profiles?.display_name?.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
+              const pts = p.points;
+              const ptsColor = pts === null ? "text-muted-foreground" : p.is_exact ? "text-gold" : pts > 0 ? "text-secondary" : "text-destructive";
+              return (
+                <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded-lg glass">
+                  {/* Avatar */}
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden flex-shrink-0">
+                    {p.profiles?.avatar_url
+                      ? <img src={p.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                      : <span className="text-[8px] font-bold text-background">{initials}</span>
+                    }
+                  </div>
+                  {/* Name */}
+                  <span className="text-xs font-medium truncate flex-1">{p.profiles?.display_name ?? "—"}</span>
+                  {/* Prediction */}
+                  <span className="font-mono text-xs text-foreground font-bold">
+                    {p.home_score}-{p.away_score}
+                  </span>
+                  {/* Points (only if finished) */}
+                  {finished && pts !== null && (
+                    <span className={`font-mono text-xs font-bold ${ptsColor} w-12 text-right`}>
+                      {p.is_exact ? "⭐" : ""} +{pts}pts
+                    </span>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -260,6 +343,9 @@ export function MatchCard({
           </button>
         )}
       </div>
+
+      {/* Pronósticos públicos — solo visibles después del kickoff */}
+      {locked && <AllPredictions matchId={match.id} finished={finished} />}
     </div>
   );
 }
