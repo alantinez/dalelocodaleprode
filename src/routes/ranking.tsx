@@ -5,6 +5,7 @@ import {
   TrendingUp, ArrowUp, ArrowDown, Minus, Camera,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { Navbar } from "@/components/landing/Navbar";
 import { Lightbox } from "@/components/ui/Lightbox";
 import mascota2 from "@/assets/mascota2.jpg.jpeg";
@@ -38,16 +39,10 @@ type HistoryEntry = {
 
 function PositionDelta({ delta }: { delta: number | null | "new" }) {
   if (delta === "new") {
-    return (
-      <span className="text-[9px] font-mono font-bold text-gold uppercase tracking-wider">
-        NEW
-      </span>
-    );
+    return <span className="text-[9px] font-mono font-bold text-gold uppercase tracking-wider">NEW</span>;
   }
   if (delta === null) return null;
-  if (delta === 0) {
-    return <Minus className="w-3 h-3 text-muted-foreground/50" />;
-  }
+  if (delta === 0) return <Minus className="w-3 h-3 text-muted-foreground/50" />;
   if (delta > 0) {
     return (
       <span className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-secondary">
@@ -63,6 +58,8 @@ function PositionDelta({ delta }: { delta: number | null | "new" }) {
 }
 
 function RankingPage() {
+  const { user } = useAuth();
+
   const q = useQuery({
     queryKey: ["ranking"],
     queryFn: async () => {
@@ -78,7 +75,6 @@ function RankingPage() {
     refetchInterval: 30_000,
   });
 
-  // Traer el último snapshot para comparar posiciones
   const historyQ = useQuery({
     queryKey: ["ranking-history-latest"],
     queryFn: async () => {
@@ -88,20 +84,15 @@ function RankingPage() {
         .order("snapshot_at", { ascending: false })
         .limit(300);
 
-      if (error || !data || data.length === 0) {
-        return { prevMap: new Map<string, number>(), label: null };
-      }
+      if (error || !data || data.length === 0) return { prevMap: new Map<string, number>(), label: null };
 
-      // Agrupar: el snapshot más reciente
       const timestamps = [...new Set(data.map((d: HistoryEntry) => d.snapshot_at))].sort().reverse();
       const latestTs = timestamps[0];
       const latestRows = data.filter((d: HistoryEntry) => d.snapshot_at === latestTs);
 
       const prevMap = new Map<string, number>();
       latestRows.forEach((d: HistoryEntry) => prevMap.set(d.user_id, d.position));
-
-      const label = latestRows[0]?.label ?? null;
-      return { prevMap, label };
+      return { prevMap, label: latestRows[0]?.label ?? null };
     },
     refetchInterval: 60_000,
   });
@@ -112,20 +103,11 @@ function RankingPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
 
-      {/* Fotos fijas en los márgenes — solo pantallas 2xl+ */}
       <div className="fixed top-32 right-4 w-36 z-10 hidden 2xl:block">
-        <Lightbox
-          src={mascota2}
-          className="rounded-2xl overflow-hidden border-2 border-primary shadow-glow rotate-3"
-          imgClassName="w-full h-auto"
-        />
+        <Lightbox src={mascota2} className="rounded-2xl overflow-hidden border-2 border-primary shadow-glow rotate-3" imgClassName="w-full h-auto" />
       </div>
       <div className="fixed top-[26rem] right-4 w-36 z-10 hidden 2xl:block">
-        <Lightbox
-          src={foto3}
-          className="rounded-2xl overflow-hidden border-2 border-secondary/40 shadow-glow -rotate-2"
-          imgClassName="w-full h-auto"
-        />
+        <Lightbox src={foto3} className="rounded-2xl overflow-hidden border-2 border-secondary/40 shadow-glow -rotate-2" imgClassName="w-full h-auto" />
       </div>
 
       <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-28 pb-20">
@@ -139,13 +121,11 @@ function RankingPage() {
           <p className="text-muted-foreground mt-2">Actualizada en tiempo real · Top 100 participantes</p>
         </div>
 
-        {/* Indicadores */}
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <div className="inline-flex items-center gap-2 glass rounded-xl px-3 py-2">
             <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
             <span className="text-xs font-mono text-muted-foreground">LIVE</span>
           </div>
-
           {hasHistory && historyQ.data?.label && (
             <div className="inline-flex items-center gap-2 glass rounded-xl px-3 py-2">
               <Camera className="w-3.5 h-3.5 text-muted-foreground" />
@@ -154,12 +134,11 @@ function RankingPage() {
               </span>
             </div>
           )}
-
           {hasHistory && (
-            <div className="inline-flex items-center gap-3 text-xs font-mono text-muted-foreground glass rounded-xl px-3 py-2 gap-3">
-              <span className="inline-flex items-center gap-1 text-secondary"><ArrowUp className="w-3 h-3" /> Subió</span>
-              <span className="inline-flex items-center gap-1 text-destructive"><ArrowDown className="w-3 h-3" /> Bajó</span>
-              <span className="inline-flex items-center gap-1"><Minus className="w-3 h-3" /> Igual</span>
+            <div className="inline-flex items-center gap-3 text-xs font-mono text-muted-foreground glass rounded-xl px-3 py-2">
+              <span className="inline-flex items-center gap-1 text-secondary"><ArrowUp className="w-3 h-3" />Subió</span>
+              <span className="inline-flex items-center gap-1 text-destructive"><ArrowDown className="w-3 h-3" />Bajó</span>
+              <span className="inline-flex items-center gap-1"><Minus className="w-3 h-3" />Igual</span>
               <span className="text-gold">NEW</span>
             </div>
           )}
@@ -181,44 +160,37 @@ function RankingPage() {
               <div>#</div>
               {hasHistory && <div />}
               <div>Jugador</div>
-              <div className="text-right flex items-center justify-end gap-1">
-                <TrendingUp className="w-3 h-3" /><span className="hidden sm:inline">Pts</span>
-              </div>
-              <div className="text-right flex items-center justify-end gap-1">
-                <Target className="w-3 h-3" /><span className="hidden sm:inline">Exa</span>
-              </div>
-              <div className="text-right flex items-center justify-end gap-1">
-                <Flame className="w-3 h-3" /><span className="hidden sm:inline">Rch</span>
-              </div>
+              <div className="text-right flex items-center justify-end gap-1"><TrendingUp className="w-3 h-3" /><span className="hidden sm:inline">Pts</span></div>
+              <div className="text-right flex items-center justify-end gap-1"><Target className="w-3 h-3" /><span className="hidden sm:inline">Exa</span></div>
+              <div className="text-right flex items-center justify-end gap-1"><Flame className="w-3 h-3" /><span className="hidden sm:inline">Rch</span></div>
             </div>
 
-            {/* Filas */}
             {q.data.map((p, i) => {
               const pos = i + 1;
+              const isMe = p.id === user?.id;
+
               const medal =
                 pos === 1 ? "text-gold" :
                 pos === 2 ? "text-silver" :
                 pos === 3 ? "text-bronze" :
+                isMe ? "text-primary" :
                 "text-muted-foreground";
+
               const initials = p.display_name
                 ?.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
 
-              // Delta de posición
               let delta: number | null | "new" = null;
               if (hasHistory) {
                 const prev = historyQ.data?.prevMap.get(p.id);
-                if (prev === undefined) {
-                  delta = "new";
-                } else {
-                  delta = prev - pos; // positivo = subió
-                }
+                delta = prev === undefined ? "new" : prev - pos;
               }
 
-              // Highlight top 3
+              // Row background
               const rowBg =
-                pos === 1 ? "bg-gold/5 hover:bg-gold/10" :
-                pos === 2 ? "bg-silver/5 hover:bg-silver/10" :
-                pos === 3 ? "bg-bronze/5 hover:bg-bronze/10" :
+                isMe ? "bg-primary/8 ring-1 ring-primary/30 ring-inset" :
+                pos === 1 ? "bg-gold/5" :
+                pos === 2 ? "bg-silver/5" :
+                pos === 3 ? "bg-bronze/5" :
                 "hover:bg-card/50";
 
               return (
@@ -240,29 +212,34 @@ function RankingPage() {
 
                   {/* Jugador */}
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden shrink-0">
+                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center overflow-hidden shrink-0 ${
+                      isMe ? "ring-2 ring-primary" : "bg-gradient-to-br from-primary to-secondary"
+                    }`}>
                       {p.avatar_url
                         ? <img src={p.avatar_url} alt="" className="w-full h-full object-cover" />
                         : <span className="text-xs font-bold text-background">{initials}</span>
                       }
                     </div>
-                    <span className="font-medium truncate">{p.display_name}</span>
+                    <div className="min-w-0">
+                      <span className={`font-medium truncate block ${isMe ? "text-primary font-semibold" : ""}`}>
+                        {p.display_name}
+                      </span>
+                      {isMe && (
+                        <span className="text-[10px] font-mono text-primary/70 uppercase tracking-widest">Vos</span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Pts */}
-                  <div className="text-right font-mono font-bold text-base sm:text-lg text-primary">
+                  <div className={`text-right font-mono font-bold text-base sm:text-lg ${isMe ? "text-primary" : "text-primary"}`}>
                     {p.total_points}
                   </div>
 
                   {/* Exactos */}
-                  <div className="text-right font-mono text-sm text-muted-foreground">
-                    {p.exact_hits}
-                  </div>
+                  <div className="text-right font-mono text-sm text-muted-foreground">{p.exact_hits}</div>
 
                   {/* Racha */}
-                  <div className="text-right font-mono text-sm text-muted-foreground">
-                    {p.current_streak}
-                  </div>
+                  <div className="text-right font-mono text-sm text-muted-foreground">{p.current_streak}</div>
                 </div>
               );
             })}
@@ -271,7 +248,7 @@ function RankingPage() {
 
         {!hasHistory && q.data && q.data.length > 0 && (
           <p className="text-center text-xs text-muted-foreground mt-6 font-mono">
-            Las flechas de posición aparecerán cuando el admin guarde el primer snapshot del ranking.
+            Las flechas aparecerán cuando el admin guarde el primer snapshot.
           </p>
         )}
       </main>
