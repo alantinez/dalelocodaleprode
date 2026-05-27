@@ -3,7 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Loader2, Save, ShieldCheck, ShieldAlert, Crown,
-  Users, CheckCircle2, XCircle, Clock, Trophy, Search, Trash2
+  Users, CheckCircle2, XCircle, Clock, Trophy, Search,
+  Trash2, Plus, Swords, CalendarDays,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,15 +12,16 @@ import { useAuth } from "@/hooks/use-auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { formatKickoff } from "@/lib/prode/scoring";
- 
+
 export const Route = createFileRoute("/_authenticated/admin")({
   component: AdminPage,
 });
- 
+
 type AdminMatch = {
   id: string;
   kickoff: string;
   group: string | null;
+  stage: string;
   venue: string | null;
   status: "scheduled" | "live" | "finished" | "postponed";
   home_score: number | null;
@@ -27,7 +29,7 @@ type AdminMatch = {
   home: { name: string; code: string; flag_url: string | null } | null;
   away: { name: string; code: string; flag_url: string | null } | null;
 };
- 
+
 type Participant = {
   id: string;
   display_name: string;
@@ -39,11 +41,24 @@ type Participant = {
   email: string;
   created_at: string;
 };
- 
+
+const KNOCKOUT_STAGES = [
+  { key: "r32",   label: "Octavos de Final",       short: "R32" },
+  { key: "r16",   label: "Dieciseisavos de Final",  short: "R16" },
+  { key: "qf",    label: "Cuartos de Final",        short: "QF"  },
+  { key: "sf",    label: "Semifinales",             short: "SF"  },
+  { key: "third", label: "3° y 4° Puesto",          short: "3°"  },
+  { key: "final", label: "Gran Final",              short: "🏆"  },
+];
+
+const STAGE_LABEL: Record<string, string> = Object.fromEntries(
+  KNOCKOUT_STAGES.map((s) => [s.key, s.label])
+);
+
 function AdminPage() {
   const { isAdmin, user, loading } = useAuth();
-  const [tab, setTab] = useState<"participantes" | "resultados" | "campeon">("participantes");
- 
+  const [tab, setTab] = useState<"participantes" | "resultados" | "knockout" | "campeon">("participantes");
+
   const claimMut = useMutation({
     mutationFn: async () => {
       const { data, error } = await supabase.rpc("claim_admin_if_empty");
@@ -56,9 +71,9 @@ function AdminPage() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
- 
+
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
- 
+
   if (!isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
@@ -74,7 +89,7 @@ function AdminPage() {
       </div>
     );
   }
- 
+
   return (
     <div className="min-h-screen bg-background pt-8 pb-20">
       <main className="mx-auto max-w-4xl px-4 sm:px-6">
@@ -85,12 +100,13 @@ function AdminPage() {
         <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight mb-6">
           Dale Dale <span className="text-gradient-hero">Admin</span>
         </h1>
- 
+
         <div className="flex gap-2 mb-8 flex-wrap">
           {([
             { key: "participantes", label: "Participantes", icon: <Users className="w-4 h-4" /> },
-            { key: "resultados", label: "Resultados", icon: <Save className="w-4 h-4" /> },
-            { key: "campeon", label: "🏆 Campeón", icon: null },
+            { key: "resultados",    label: "Resultados",    icon: <Save className="w-4 h-4" /> },
+            { key: "knockout",      label: "⚽ Knockout",   icon: null },
+            { key: "campeon",       label: "🏆 Campeón",    icon: null },
           ] as const).map((t) => (
             <button key={t.key} onClick={() => setTab(t.key)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition ${
@@ -100,19 +116,281 @@ function AdminPage() {
             </button>
           ))}
         </div>
- 
+
         {tab === "participantes" && <AdminParticipants />}
-        {tab === "resultados" && <AdminMatches />}
-        {tab === "campeon" && <AdminChampion />}
+        {tab === "resultados"    && <AdminMatches />}
+        {tab === "knockout"      && <AdminKnockout />}
+        {tab === "campeon"       && <AdminChampion />}
       </main>
     </div>
   );
 }
- 
+
+/* ──────────────────────────────────────────────
+   KNOCKOUT — crear y ver partidos de eliminación
+────────────────────────────────────────────── */
+function AdminKnockout() {
+  const qc = useQueryClient();
+  const [stage, setStage]       = useState("r32");
+  const [homeId, setHomeId]     = useState("");
+  const [awayId, setAwayId]     = useState("");
+  const [kickoffStr, setKickoff] = useState("");
+  const [venue, setVenue]       = useState("");
+  const [teamSearch, setTeamSearch] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const teamsQ = useQuery({
+    queryKey: ["teams-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("teams").select("id, name, code, flag_url, group").order("name");
+      if (error) throw error;
+      return data as { id: string; name: string; code: string; flag_url: string | null; group: string }[];
+    },
+  });
+
+  const knockoutQ = useQuery({
+    queryKey: ["admin-knockout-matches"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("matches")
+        .select(`id, kickoff, stage, group, venue, status, home_score, away_score,
+           home:teams!matches_home_team_id_fkey(name,code,flag_url),
+           away:teams!matches_away_team_id_fkey(name,code,flag_url)`)
+        .neq("stage", "group")
+        .order("kickoff", { ascending: true });
+      if (error) throw error;
+      return data as unknown as AdminMatch[];
+    },
+  });
+
+  const createMut = useMutation({
+    mutationFn: async () => {
+      if (!homeId || !awayId || !kickoffStr) throw new Error("Completá todos los campos obligatorios");
+      if (homeId === awayId) throw new Error("El local y el visitante deben ser equipos distintos");
+      const kickoffISO = new Date(kickoffStr).toISOString();
+      const { error } = await supabase.rpc("admin_create_match", {
+        p_stage: stage,
+        p_home_team_id: homeId,
+        p_away_team_id: awayId,
+        p_kickoff: kickoffISO,
+        p_venue: venue || null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Partido creado ✅");
+      setHomeId(""); setAwayId(""); setKickoff(""); setVenue("");
+      qc.invalidateQueries({ queryKey: ["admin-knockout-matches"] });
+      qc.invalidateQueries({ queryKey: ["matches"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.rpc("admin_delete_match", { p_match_id: id });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Partido eliminado");
+      setDeletingId(null);
+      qc.invalidateQueries({ queryKey: ["admin-knockout-matches"] });
+      qc.invalidateQueries({ queryKey: ["matches"] });
+    },
+    onError: (e: Error) => { toast.error(e.message); setDeletingId(null); },
+  });
+
+  const filteredTeams = useMemo(() => {
+    return (teamsQ.data ?? []).filter((t) =>
+      teamSearch === "" ||
+      t.name.toLowerCase().includes(teamSearch.toLowerCase()) ||
+      t.code.toLowerCase().includes(teamSearch.toLowerCase())
+    );
+  }, [teamsQ.data, teamSearch]);
+
+  const teamById = useMemo(() => {
+    const m = new Map<string, string>();
+    (teamsQ.data ?? []).forEach((t) => m.set(t.id, t.name));
+    return m;
+  }, [teamsQ.data]);
+
+  // Agrupar partidos existentes por stage
+  const byStage = useMemo(() => {
+    const map = new Map<string, AdminMatch[]>();
+    for (const m of knockoutQ.data ?? []) {
+      if (!map.has(m.stage)) map.set(m.stage, []);
+      map.get(m.stage)!.push(m);
+    }
+    return map;
+  }, [knockoutQ.data]);
+
+  return (
+    <div className="space-y-8">
+      {/* Modal confirmación borrado */}
+      {deletingId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm px-4">
+          <div className="glass-strong rounded-2xl p-6 max-w-sm w-full text-center">
+            <Trash2 className="w-10 h-10 text-destructive mx-auto mb-3" />
+            <h3 className="font-display font-bold text-xl mb-2">¿Eliminar partido?</h3>
+            <p className="text-sm text-muted-foreground mb-6">Se eliminan también los pronósticos de este partido. No se puede deshacer.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDeletingId(null)} className="flex-1 glass rounded-xl py-2.5 text-sm font-medium hover:bg-card transition">Cancelar</button>
+              <button onClick={() => deleteMut.mutate(deletingId)} disabled={deleteMut.isPending}
+                className="flex-1 bg-destructive text-white rounded-xl py-2.5 text-sm font-semibold hover:bg-destructive/90 transition disabled:opacity-50">
+                {deleteMut.isPending ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : "Eliminar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Formulario nuevo partido */}
+      <div className="glass-strong rounded-2xl p-5 border border-primary/20">
+        <div className="flex items-center gap-2 mb-4">
+          <Plus className="w-4 h-4 text-primary" />
+          <h3 className="font-display font-bold text-lg">Agregar partido knockout</h3>
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-4">
+          {/* Fase */}
+          <div className="sm:col-span-2">
+            <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">Fase</label>
+            <div className="flex flex-wrap gap-2">
+              {KNOCKOUT_STAGES.map((s) => (
+                <button key={s.key} type="button" onClick={() => setStage(s.key)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                    stage === s.key ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
+                  }`}>
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Buscador de equipos */}
+          <div className="sm:col-span-2">
+            <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">Buscar equipo</label>
+            <input value={teamSearch} onChange={(e) => setTeamSearch(e.target.value)}
+              placeholder="Escribí para filtrar equipos..."
+              className="w-full glass rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+          </div>
+
+          {/* Local */}
+          <div>
+            <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">
+              Local {homeId && <span className="text-primary ml-1">✓ {teamById.get(homeId)}</span>}
+            </label>
+            <div className="glass rounded-xl max-h-36 overflow-y-auto divide-y divide-border/30">
+              {teamsQ.isLoading ? <div className="p-3 text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto text-primary" /></div>
+                : filteredTeams.map((t) => (
+                  <button key={t.id} type="button" onClick={() => setHomeId(t.id)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-card transition ${homeId === t.id ? "bg-primary/20 text-primary" : ""}`}>
+                    {t.flag_url && <img src={t.flag_url} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />}
+                    <span className="truncate">{t.name}</span>
+                    <span className="ml-auto font-mono text-[10px] text-muted-foreground">{t.group}</span>
+                  </button>
+                ))
+              }
+            </div>
+          </div>
+
+          {/* Visitante */}
+          <div>
+            <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">
+              Visitante {awayId && <span className="text-secondary ml-1">✓ {teamById.get(awayId)}</span>}
+            </label>
+            <div className="glass rounded-xl max-h-36 overflow-y-auto divide-y divide-border/30">
+              {teamsQ.isLoading ? <div className="p-3 text-center"><Loader2 className="w-4 h-4 animate-spin mx-auto text-primary" /></div>
+                : filteredTeams.map((t) => (
+                  <button key={t.id} type="button" onClick={() => setAwayId(t.id)}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-sm text-left hover:bg-card transition ${awayId === t.id ? "bg-secondary/20 text-secondary" : ""}`}>
+                    {t.flag_url && <img src={t.flag_url} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />}
+                    <span className="truncate">{t.name}</span>
+                    <span className="ml-auto font-mono text-[10px] text-muted-foreground">{t.group}</span>
+                  </button>
+                ))
+              }
+            </div>
+          </div>
+
+          {/* Kickoff */}
+          <div>
+            <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">Fecha y hora</label>
+            <input type="datetime-local" value={kickoffStr} onChange={(e) => setKickoff(e.target.value)}
+              className="w-full glass rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+          </div>
+
+          {/* Venue */}
+          <div>
+            <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">Estadio (opcional)</label>
+            <input type="text" value={venue} onChange={(e) => setVenue(e.target.value)} placeholder="Ej: MetLife Stadium"
+              className="w-full glass rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
+          </div>
+        </div>
+
+        <div className="mt-5 flex justify-end">
+          <Button onClick={() => createMut.mutate()} disabled={createMut.isPending || !homeId || !awayId || !kickoffStr}
+            className="bg-gradient-to-r from-primary to-secondary text-background font-semibold gap-2">
+            {createMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Swords className="w-4 h-4" /> Crear partido</>}
+          </Button>
+        </div>
+      </div>
+
+      {/* Partidos knockout existentes */}
+      <div>
+        <h3 className="font-display font-bold text-lg mb-4 flex items-center gap-2">
+          <CalendarDays className="w-4 h-4 text-primary" /> Partidos cargados
+        </h3>
+        {knockoutQ.isLoading ? (
+          <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+        ) : byStage.size === 0 ? (
+          <div className="glass-strong rounded-2xl p-10 text-center text-muted-foreground text-sm">
+            Todavía no hay partidos knockout cargados. Usá el formulario de arriba para agregar los cruces.
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {KNOCKOUT_STAGES.filter((s) => byStage.has(s.key)).map((s) => (
+              <div key={s.key}>
+                <div className="text-xs font-mono uppercase tracking-widest text-primary mb-2">{s.label}</div>
+                <div className="space-y-2">
+                  {byStage.get(s.key)!.map((m) => (
+                    <div key={m.id} className="glass-strong rounded-xl p-3 flex items-center gap-3">
+                      <div className="flex-1 flex items-center gap-2 text-sm font-semibold">
+                        {m.home?.flag_url && <img src={m.home.flag_url} alt="" className="w-5 h-5 rounded object-cover" />}
+                        <span className="truncate">{m.home?.name}</span>
+                        <span className="text-muted-foreground mx-1 font-normal">vs</span>
+                        {m.away?.flag_url && <img src={m.away.flag_url} alt="" className="w-5 h-5 rounded object-cover" />}
+                        <span className="truncate">{m.away?.name}</span>
+                      </div>
+                      <span className="text-xs font-mono text-muted-foreground hidden sm:block flex-shrink-0">
+                        {formatKickoff(new Date(m.kickoff))}
+                      </span>
+                      {m.status === "finished" && (
+                        <span className="text-xs font-mono font-bold text-secondary flex-shrink-0">
+                          {m.home_score}-{m.away_score}
+                        </span>
+                      )}
+                      <button onClick={() => setDeletingId(m.id)}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg glass hover:bg-destructive/20 hover:text-destructive transition flex-shrink-0">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ──────────────────────── CAMPEÓN ─────────────────────── */
 function AdminChampion() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
- 
+
   const teamsQ = useQuery({
     queryKey: ["teams-all"],
     queryFn: async () => {
@@ -121,7 +399,7 @@ function AdminChampion() {
       return data;
     },
   });
- 
+
   const setChampMut = useMutation({
     mutationFn: async (teamId: string) => {
       const { error } = await supabase.rpc("admin_set_champion", { winning_team_id: teamId });
@@ -133,41 +411,30 @@ function AdminChampion() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
- 
+
   const teams = ((teamsQ.data ?? []) as any[]).filter((t) =>
     search === "" || t.name.toLowerCase().includes(search.toLowerCase()) || t.code.toLowerCase().includes(search.toLowerCase())
   );
- 
+
   return (
     <div>
       <div className="glass-strong rounded-2xl p-5 mb-6 border border-gold/30">
         <h3 className="font-display font-bold text-xl text-gold mb-1">🏆 Declarar campeón del Mundial</h3>
         <p className="text-sm text-muted-foreground mb-5">
           Usá esto cuando termine el torneo. Al confirmar, se otorgan <b>10 puntos</b> automáticamente a todos los que eligieron este equipo.
-          <br />
-          <span className="text-destructive font-semibold">⚠️ Esta acción no se puede deshacer.</span>
+          <br /><span className="text-destructive font-semibold">⚠️ Esta acción no se puede deshacer.</span>
         </p>
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Buscar equipo..."
-          className="w-full glass rounded-xl px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-gold/40"
-        />
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar equipo..."
+          className="w-full glass rounded-xl px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-gold/40" />
         {teamsQ.isLoading ? (
           <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1">
             {teams.map((t: any) => (
-              <button
-                key={t.id}
-                onClick={() => {
-                  if (confirm(`¿Declarar a ${t.name} como CAMPEÓN del Mundial?\n\nEsto otorgará 10 pts a todos los que lo eligieron. No se puede deshacer.`)) {
-                    setChampMut.mutate(t.id);
-                  }
-                }}
+              <button key={t.id}
+                onClick={() => { if (confirm(`¿Declarar a ${t.name} como CAMPEÓN?\n\nEsto otorgará 10 pts. No se puede deshacer.`)) setChampMut.mutate(t.id); }}
                 disabled={setChampMut.isPending}
-                className="flex items-center gap-2.5 glass rounded-xl px-3 py-2.5 hover:bg-card hover:ring-1 hover:ring-gold/50 transition active:scale-95 text-left"
-              >
+                className="flex items-center gap-2.5 glass rounded-xl px-3 py-2.5 hover:bg-card hover:ring-1 hover:ring-gold/50 transition active:scale-95 text-left">
                 {t.flag_url && <img src={t.flag_url} alt="" className="w-7 h-7 rounded-md object-cover flex-shrink-0" />}
                 <div className="min-w-0">
                   <div className="text-sm font-medium truncate">{t.name}</div>
@@ -181,13 +448,14 @@ function AdminChampion() {
     </div>
   );
 }
- 
+
+/* ──────────────────────── PARTICIPANTES ─────────────────────── */
 function AdminParticipants() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"todos" | "pagados" | "pendientes">("todos");
   const [deletingId, setDeletingId] = useState<string | null>(null);
- 
+
   const q = useQuery({
     queryKey: ["admin-participants"],
     queryFn: async () => {
@@ -197,7 +465,7 @@ function AdminParticipants() {
     },
     refetchInterval: 30_000,
   });
- 
+
   const setPaidMut = useMutation({
     mutationFn: async ({ userId, paid }: { userId: string; paid: boolean }) => {
       const { error } = await supabase.rpc("admin_set_paid", { target_user_id: userId, is_paid: paid });
@@ -209,7 +477,7 @@ function AdminParticipants() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
- 
+
   const deleteMut = useMutation({
     mutationFn: async (userId: string) => {
       const { error } = await supabase.rpc("admin_delete_participant", { target_user_id: userId });
@@ -222,17 +490,17 @@ function AdminParticipants() {
     },
     onError: (e: Error) => { toast.error(e.message); setDeletingId(null); },
   });
- 
+
   const participants = q.data ?? [];
   const filtered = useMemo(() => participants.filter((p) => {
     const matchesSearch = search === "" || p.display_name.toLowerCase().includes(search.toLowerCase()) || p.email.toLowerCase().includes(search.toLowerCase());
     const matchesFilter = filter === "todos" || (filter === "pagados" && p.paid) || (filter === "pendientes" && !p.paid);
     return matchesSearch && matchesFilter;
   }), [participants, search, filter]);
- 
+
   const totalPagados = participants.filter((p) => p.paid).length;
   const totalPendientes = participants.filter((p) => !p.paid).length;
- 
+
   return (
     <div>
       {deletingId && (
@@ -251,7 +519,7 @@ function AdminParticipants() {
           </div>
         </div>
       )}
- 
+
       <div className="grid grid-cols-3 gap-3 mb-6">
         <div className="glass rounded-2xl p-4 text-center">
           <div className="font-display font-bold text-3xl">{participants.length}</div>
@@ -266,7 +534,7 @@ function AdminParticipants() {
           <div className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-mono">Pendientes ⏳</div>
         </div>
       </div>
- 
+
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -282,7 +550,7 @@ function AdminParticipants() {
           ))}
         </div>
       </div>
- 
+
       {q.isLoading ? (
         <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : filtered.length === 0 ? (
@@ -325,17 +593,18 @@ function AdminParticipants() {
     </div>
   );
 }
- 
+
+/* ──────────────────────── RESULTADOS ─────────────────────── */
 function AdminMatches() {
   const qc = useQueryClient();
   const [filter, setFilter] = useState<"todos" | "pendientes" | "finalizados">("pendientes");
- 
+
   const matchesQ = useQuery({
     queryKey: ["admin-matches"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("matches")
-        .select(`id, kickoff, group, venue, status, home_score, away_score,
+        .select(`id, kickoff, group, stage, venue, status, home_score, away_score,
            home:teams!matches_home_team_id_fkey(name,code,flag_url),
            away:teams!matches_away_team_id_fkey(name,code,flag_url)`)
         .order("kickoff", { ascending: true });
@@ -343,7 +612,7 @@ function AdminMatches() {
       return data as unknown as AdminMatch[];
     },
   });
- 
+
   const saveMut = useMutation({
     mutationFn: async (vars: { id: string; home: number; away: number }) => {
       const { error } = await supabase.from("matches")
@@ -359,7 +628,7 @@ function AdminMatches() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
- 
+
   const filtered = useMemo(() => {
     const list = matchesQ.data ?? [];
     return list.filter((m) => {
@@ -368,7 +637,7 @@ function AdminMatches() {
       return true;
     });
   }, [matchesQ.data, filter]);
- 
+
   return (
     <div>
       <p className="text-muted-foreground mb-6">Al guardar un partido, se recalculan los puntos automáticamente.</p>
@@ -392,18 +661,19 @@ function AdminMatches() {
     </div>
   );
 }
- 
+
 function AdminMatchRow({ match, onSave, saving }: { match: AdminMatch; onSave: (home: number, away: number) => void; saving: boolean }) {
   const [home, setHome] = useState<string>(match.home_score?.toString() ?? "");
   const [away, setAway] = useState<string>(match.away_score?.toString() ?? "");
   const isFinished = match.status === "finished";
- 
+
   return (
     <div className={`glass-strong rounded-2xl p-4 sm:p-5 ${isFinished ? "ring-1 ring-primary/40" : ""}`}>
       <div className="flex items-center justify-between mb-3 text-[10px] sm:text-xs font-mono uppercase tracking-widest text-muted-foreground">
         <span>{formatKickoff(new Date(match.kickoff))}</span>
         <div className="flex items-center gap-2">
           {match.group && <span className="text-primary">Grupo {match.group}</span>}
+          {match.stage !== "group" && <span className="text-secondary">{STAGE_LABEL[match.stage] ?? match.stage}</span>}
           {isFinished && <span className="px-2 py-0.5 rounded bg-primary/15 text-primary">FINAL</span>}
         </div>
       </div>
