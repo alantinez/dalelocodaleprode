@@ -1,346 +1,268 @@
-import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Minus, Plus, MapPin, Check, Loader2, Trophy, Lock, ChevronDown, ChevronUp, Users } from "lucide-react";
-import { toast } from "sonner";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
+import {
+  Trophy, Medal, Loader2, ArrowLeft, Target, Flame,
+  TrendingUp, ArrowUp, ArrowDown, Minus, Camera,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { MatchCountdown } from "./MatchCountdown";
-import { formatKickoff } from "@/lib/prode/scoring";
+import { Navbar } from "@/components/landing/Navbar";
+import { Lightbox } from "@/components/ui/Lightbox";
+import mascota2 from "@/assets/mascota2.jpg.jpeg";
+import foto3 from "@/assets/foto3.jpeg";
 
-export type Team = {
+export const Route = createFileRoute("/ranking")({
+  head: () => ({
+    meta: [
+      { title: "Ranking · Dale Dale" },
+      { name: "description", content: "Tabla de posiciones en vivo del PRODE Mundial 2026." },
+    ],
+  }),
+  component: RankingPage,
+});
+
+type Profile = {
   id: string;
-  name: string;
-  code: string;
-  flag_url: string | null;
+  display_name: string;
+  avatar_url: string | null;
+  total_points: number;
+  exact_hits: number;
+  current_streak: number;
 };
 
-export type MatchWithTeams = {
-  id: string;
-  kickoff: string;
-  stage: string;
-  group: string | null;
-  venue: string | null;
-  status: string;
-  home_score: number | null;
-  away_score: number | null;
-  home: Team | null;
-  away: Team | null;
+type HistoryEntry = {
+  user_id: string;
+  position: number;
+  snapshot_at: string;
+  label: string | null;
 };
 
-export type Prediction = {
-  match_id: string;
-  home_score: number;
-  away_score: number;
-  points: number;
-  is_exact: boolean;
-};
-
-type AllPrediction = {
-  home_score: number;
-  away_score: number;
-  points: number | null;
-  is_exact: boolean | null;
-  profiles: { display_name: string; avatar_url: string | null } | null;
-};
-
-function TeamInfo({ team }: { team: Team | null }) {
+function PositionDelta({ delta }: { delta: number | null | "new" }) {
+  if (delta === "new") {
+    return <span className="text-[9px] font-mono font-bold text-gold uppercase tracking-wider">NEW</span>;
+  }
+  if (delta === null) return null;
+  if (delta === 0) return <Minus className="w-3 h-3 text-muted-foreground/50" />;
+  if (delta > 0) {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-secondary">
+        <ArrowUp className="w-2.5 h-2.5" />{delta}
+      </span>
+    );
+  }
   return (
-    <div className="flex flex-col items-center gap-1.5 flex-1 min-w-0 px-1">
-      <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full overflow-hidden ring-2 ring-border/60 bg-card flex items-center justify-center flex-shrink-0">
-        {team?.flag_url ? (
-          <img src={team.flag_url} alt={team.name} className="w-full h-full object-cover" />
-        ) : (
-          <span className="font-mono text-xs">{team?.code ?? "?"}</span>
-        )}
-      </div>
-      <div className="text-center w-full">
-        <div className="font-display font-semibold text-xs sm:text-sm leading-tight truncate w-full">
-          {team?.name ?? "—"}
-        </div>
-        <div className="font-mono text-[9px] sm:text-[10px] text-muted-foreground tracking-widest mt-0.5">
-          {team?.code}
-        </div>
-      </div>
-    </div>
+    <span className="inline-flex items-center gap-0.5 text-[10px] font-mono font-bold text-destructive">
+      <ArrowDown className="w-2.5 h-2.5" />{Math.abs(delta)}
+    </span>
   );
 }
 
-function ScoreInput({
-  score, onInc, onDec, disabled,
-}: {
-  score: number;
-  onInc: () => void;
-  onDec: () => void;
-  disabled: boolean;
-}) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <button
-        type="button"
-        onClick={onDec}
-        disabled={disabled || score <= 0}
-        className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl glass hover:bg-card active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition touch-manipulation"
-      >
-        <Minus className="w-3.5 h-3.5" />
-      </button>
-      <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30 flex items-center justify-center font-mono font-bold text-xl sm:text-2xl tabular-nums">
-        {score}
-      </div>
-      <button
-        type="button"
-        onClick={onInc}
-        disabled={disabled || score >= 20}
-        className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl glass hover:bg-card active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center transition touch-manipulation"
-      >
-        <Plus className="w-3.5 h-3.5" />
-      </button>
-    </div>
-  );
-}
+function RankingPage() {
+  const { user } = useAuth();
 
-function AllPredictions({ matchId, finished }: { matchId: string; finished: boolean }) {
-  const [open, setOpen] = useState(false);
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["all-predictions", matchId],
-    enabled: open,
+  const q = useQuery({
+    queryKey: ["ranking"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("predictions")
-        .select("home_score, away_score, points, is_exact, profiles(display_name, avatar_url)")
-        .eq("match_id", matchId)
-        .order("points", { ascending: false, nullsFirst: false });
+        .from("profiles")
+        .select("id, display_name, avatar_url, total_points, exact_hits, current_streak")
+        .order("total_points", { ascending: false })
+        .order("exact_hits", { ascending: false })
+        .limit(100);
       if (error) throw error;
-      return (data ?? []) as unknown as AllPrediction[];
+      return (data ?? []) as Profile[];
     },
+    refetchInterval: 30_000,
   });
 
-  return (
-    <div className="mt-3 border-t border-border/40 pt-3">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition"
-      >
-        <span className="flex items-center gap-1.5">
-          <Users className="w-3.5 h-3.5" />
-          Ver pronósticos del grupo
-        </span>
-        {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-      </button>
+  const historyQ = useQuery({
+    queryKey: ["ranking-history-latest"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ranking_history")
+        .select("user_id, position, snapshot_at, label")
+        .order("snapshot_at", { ascending: false })
+        .limit(300);
 
-      {open && (
-        <div className="mt-2 space-y-1.5">
-          {isLoading ? (
-            <div className="flex justify-center py-3">
-              <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+      if (error || !data || data.length === 0) return { prevMap: new Map<string, number>(), label: null };
+
+      const timestamps = [...new Set(data.map((d: HistoryEntry) => d.snapshot_at))].sort().reverse();
+      const latestTs = timestamps[0];
+      const latestRows = data.filter((d: HistoryEntry) => d.snapshot_at === latestTs);
+
+      const prevMap = new Map<string, number>();
+      latestRows.forEach((d: HistoryEntry) => prevMap.set(d.user_id, d.position));
+      return { prevMap, label: latestRows[0]?.label ?? null };
+    },
+    refetchInterval: 60_000,
+  });
+
+  const hasHistory = (historyQ.data?.prevMap.size ?? 0) > 0;
+
+  // Grid columns:
+  // Mobile: # | (delta) | name | pts
+  // Desktop: # | (delta) | name | pts | exactos | racha
+  const gridCols = hasHistory
+    ? "grid-cols-[40px_24px_1fr_52px] sm:grid-cols-[44px_28px_1fr_60px_60px_60px]"
+    : "grid-cols-[40px_1fr_52px] sm:grid-cols-[44px_1fr_60px_60px_60px]";
+
+  return (
+    <div className="min-h-screen bg-background">
+      <Navbar />
+
+      <div className="fixed top-32 right-4 w-36 z-10 hidden 2xl:block">
+        <Lightbox src={mascota2} className="rounded-2xl overflow-hidden border-2 border-primary shadow-glow rotate-3" imgClassName="w-full h-auto" />
+      </div>
+      <div className="fixed top-[26rem] right-4 w-36 z-10 hidden 2xl:block">
+        <Lightbox src={foto3} className="rounded-2xl overflow-hidden border-2 border-secondary/40 shadow-glow -rotate-2" imgClassName="w-full h-auto" />
+      </div>
+
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-28 pb-20">
+        <div className="mb-6">
+          <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition mb-3">
+            <ArrowLeft className="w-3.5 h-3.5" /> Volver
+          </Link>
+          <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight">
+            Tabla de <span className="text-gradient-hero">posiciones</span>
+          </h1>
+          <p className="text-muted-foreground mt-2">Actualizada en tiempo real · Top 100 participantes</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 mb-4">
+          <div className="inline-flex items-center gap-2 glass rounded-xl px-3 py-2">
+            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            <span className="text-xs font-mono text-muted-foreground">LIVE</span>
+          </div>
+          {hasHistory && historyQ.data?.label && (
+            <div className="inline-flex items-center gap-2 glass rounded-xl px-3 py-2">
+              <Camera className="w-3.5 h-3.5 text-muted-foreground" />
+              <span className="text-xs font-mono text-muted-foreground">
+                vs snapshot: <span className="text-foreground">{historyQ.data.label}</span>
+              </span>
             </div>
-          ) : !data || data.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-2">Nadie predijo este partido.</p>
-          ) : (
-            data.map((p, i) => {
-              const initials = p.profiles?.display_name?.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
-              const pts = p.points;
-              const ptsColor = pts === null ? "text-muted-foreground" : p.is_exact ? "text-gold" : pts > 0 ? "text-secondary" : "text-destructive";
-              return (
-                <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded-lg glass">
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {p.profiles?.avatar_url
-                      ? <img src={p.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
-                      : <span className="text-[8px] font-bold text-background">{initials}</span>
-                    }
-                  </div>
-                  <span className="text-xs font-medium truncate flex-1">{p.profiles?.display_name ?? "—"}</span>
-                  <span className="font-mono text-xs text-foreground font-bold">{p.home_score}-{p.away_score}</span>
-                  {finished && pts !== null && (
-                    <span className={`font-mono text-xs font-bold ${ptsColor} w-12 text-right`}>
-                      {p.is_exact ? "⭐" : ""} +{pts}pts
-                    </span>
-                  )}
-                </div>
-              );
-            })
           )}
         </div>
-      )}
-    </div>
-  );
-}
 
-export function MatchCard({
-  match,
-  prediction,
-}: {
-  match: MatchWithTeams;
-  prediction: Prediction | null;
-}) {
-  const { user, profile, isAdmin } = useAuth();
-  const canPredict = isAdmin || (profile?.paid ?? false);
-  const queryClient = useQueryClient();
-  const kickoff = new Date(match.kickoff);
-  const [locked, setLocked] = useState(() => Date.now() >= kickoff.getTime());
-  const [home, setHome] = useState(prediction?.home_score ?? 0);
-  const [away, setAway] = useState(prediction?.away_score ?? 0);
-  const finished = match.status === "finished" && match.home_score !== null;
-
-  useEffect(() => {
-    setHome(prediction?.home_score ?? 0);
-    setAway(prediction?.away_score ?? 0);
-  }, [prediction?.home_score, prediction?.away_score]);
-
-  useEffect(() => {
-    if (locked) return;
-    const id = setInterval(() => {
-      if (Date.now() >= kickoff.getTime()) {
-        setLocked(true);
-        clearInterval(id);
-      }
-    }, 1000);
-    return () => clearInterval(id);
-  }, [locked, kickoff]);
-
-  const dirty = !prediction || prediction.home_score !== home || prediction.away_score !== away;
-
-  const mutation = useMutation({
-    mutationFn: async () => {
-      if (!user) throw new Error("No autenticado");
-      const { error } = await supabase
-        .from("predictions")
-        .upsert(
-          { user_id: user.id, match_id: match.id, home_score: home, away_score: away },
-          { onConflict: "user_id,match_id" },
-        );
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Pronóstico guardado");
-      queryClient.invalidateQueries({ queryKey: ["predictions"] });
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-
-  return (
-    <div className="glass rounded-2xl p-4 sm:p-5 relative overflow-hidden">
-      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
-
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4 text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          {match.group && (
-            <span className="px-2 py-0.5 rounded-md bg-primary/15 text-primary font-mono font-bold">
-              Grupo {match.group}
-            </span>
-          )}
-          <span className="font-mono">{formatKickoff(kickoff)}</span>
-        </div>
-        {finished ? (
-          <div className="inline-flex items-center gap-1.5 text-xs font-mono text-secondary">
-            <Trophy className="w-3 h-3" /> Final
+        {q.isLoading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-6 h-6 animate-spin text-primary" />
+          </div>
+        ) : !q.data || q.data.length === 0 ? (
+          <div className="glass-strong rounded-2xl p-12 text-center">
+            <Trophy className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground">Todavía no hay participantes. ¡Sé el primero!</p>
           </div>
         ) : (
-          <MatchCountdown kickoff={kickoff} />
+          <div className="glass-strong rounded-2xl overflow-hidden">
+            {/* Header */}
+            <div className={`grid ${gridCols} gap-2 sm:gap-3 px-4 sm:px-6 py-3 border-b border-border/50 text-[10px] sm:text-xs uppercase tracking-widest font-mono text-muted-foreground`}>
+              <div>#</div>
+              {hasHistory && <div />}
+              <div>Jugador</div>
+              <div className="text-right flex items-center justify-end gap-1">
+                <TrendingUp className="w-3 h-3" />
+                <span className="hidden sm:inline">Pts</span>
+              </div>
+              <div className="hidden sm:flex text-right items-center justify-end gap-1">
+                <Target className="w-3 h-3" />
+                <span className="hidden sm:inline">Exa</span>
+              </div>
+              <div className="hidden sm:flex text-right items-center justify-end gap-1">
+                <Flame className="w-3 h-3" />
+                <span className="hidden sm:inline">Rch</span>
+              </div>
+            </div>
+
+            {q.data.map((p, i) => {
+              const pos = i + 1;
+              const isMe = p.id === user?.id;
+
+              const medal =
+                pos === 1 ? "text-gold" :
+                pos === 2 ? "text-silver" :
+                pos === 3 ? "text-bronze" :
+                isMe ? "text-primary" :
+                "text-muted-foreground";
+
+              const initials = p.display_name
+                ?.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
+
+              let delta: number | null | "new" = null;
+              if (hasHistory) {
+                const prev = historyQ.data?.prevMap.get(p.id);
+                delta = prev === undefined ? "new" : prev - pos;
+              }
+
+              const rowBg =
+                isMe ? "bg-primary/8 ring-1 ring-primary/30 ring-inset" :
+                pos === 1 ? "bg-gold/5" :
+                pos === 2 ? "bg-silver/5" :
+                pos === 3 ? "bg-bronze/5" :
+                "hover:bg-card/50";
+
+              return (
+                <div
+                  key={p.id}
+                  className={`grid ${gridCols} gap-2 sm:gap-3 px-4 sm:px-6 py-4 items-center border-b border-border/30 last:border-0 transition ${rowBg}`}
+                >
+                  {/* Posición */}
+                  <div className={`font-display font-bold text-lg sm:text-xl ${medal} flex items-center gap-0.5`}>
+                    {pos <= 3 ? <Medal className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : null}{pos}
+                  </div>
+
+                  {/* Delta */}
+                  {hasHistory && (
+                    <div className="flex items-center justify-center">
+                      <PositionDelta delta={delta} />
+                    </div>
+                  )}
+
+                  {/* Jugador */}
+                  <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center overflow-hidden shrink-0 ${
+                      isMe ? "ring-2 ring-primary bg-gradient-to-br from-primary to-secondary" : "bg-gradient-to-br from-primary to-secondary"
+                    }`}>
+                      {p.avatar_url
+                        ? <img src={p.avatar_url} alt="" className="w-full h-full object-cover" />
+                        : <span className="text-xs font-bold text-background">{initials}</span>
+                      }
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className={`font-medium truncate block text-sm sm:text-base ${isMe ? "text-primary font-semibold" : ""}`}>
+                        {p.display_name}
+                      </span>
+                      {isMe && (
+                        <span className="text-[10px] font-mono text-primary/70 uppercase tracking-widest">Vos</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Pts */}
+                  <div className="text-right font-mono font-bold text-base sm:text-lg text-primary">
+                    {p.total_points}
+                  </div>
+
+                  {/* Exactos — solo desktop */}
+                  <div className="hidden sm:block text-right font-mono text-sm text-muted-foreground">
+                    {p.exact_hits}
+                  </div>
+
+                  {/* Racha — solo desktop */}
+                  <div className="hidden sm:block text-right font-mono text-sm text-muted-foreground">
+                    {p.current_streak}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
-      </div>
 
-      {/* Teams + Scores */}
-      <div className="flex items-center justify-between gap-1">
-        <TeamInfo team={match.home} />
-
-        <div className="flex flex-col items-center gap-3 flex-none px-1">
-          {finished && (
-            <div className="font-mono text-lg font-bold text-secondary whitespace-nowrap">
-              {match.home_score} - {match.away_score}
-            </div>
-          )}
-
-          {!locked && canPredict && (
-            <div className="flex items-center gap-1.5">
-              <ScoreInput
-                score={home}
-                onInc={() => setHome((s) => Math.min(20, s + 1))}
-                onDec={() => setHome((s) => Math.max(0, s - 1))}
-                disabled={false}
-              />
-              <span className="font-bold text-muted-foreground/60 text-sm">-</span>
-              <ScoreInput
-                score={away}
-                onInc={() => setAway((s) => Math.min(20, s + 1))}
-                onDec={() => setAway((s) => Math.max(0, s - 1))}
-                disabled={false}
-              />
-            </div>
-          )}
-
-          {!locked && !canPredict && (
-            <div className="flex items-center gap-1.5 text-xs text-gold font-mono px-3 py-2 glass rounded-xl">
-              <Lock className="w-3.5 h-3.5" /> Confirmá tu pago
-            </div>
-          )}
-
-          {locked && !finished && (
-            <div className="text-xs text-muted-foreground font-mono px-3 py-1.5 glass rounded-lg whitespace-nowrap">
-              {prediction ? `${prediction.home_score} - ${prediction.away_score}` : "Sin pronóstico"}
-            </div>
-          )}
-        </div>
-
-        <TeamInfo team={match.away} />
-      </div>
-
-      {/* Venue */}
-      {match.venue && (
-        <div className="mt-3 flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <MapPin className="w-3 h-3 flex-shrink-0" />
-          <span className="truncate">{match.venue}</span>
-        </div>
-      )}
-
-      {/* Footer */}
-      <div className="mt-4 flex items-center justify-between gap-3">
-        <div className="text-xs text-muted-foreground min-w-0">
-          {prediction ? (
-            finished ? (
-              <span>
-                Tu pron:{" "}
-                <span className="font-mono text-foreground">
-                  {prediction.home_score}-{prediction.away_score}
-                </span>
-                {" · "}
-                <span className={`font-bold ${
-                  prediction.is_exact ? "text-gold" : prediction.points > 0 ? "text-secondary" : "text-destructive"
-                }`}>
-                  +{prediction.points} pts
-                </span>
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-secondary">
-                <Check className="w-3 h-3" /> Guardado
-              </span>
-            )
-          ) : (
-            <span>{locked ? "Sin pronóstico" : canPredict ? "Cargá tu pronóstico" : ""}</span>
-          )}
-        </div>
-
-        {!locked && canPredict && (
-          <button
-            type="button"
-            onClick={() => mutation.mutate()}
-            disabled={!dirty || mutation.isPending}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-primary to-secondary px-4 py-2.5 text-xs font-semibold text-background shadow-glow disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 transition touch-manipulation min-w-[90px] justify-center flex-shrink-0"
-          >
-            {mutation.isPending ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Check className="w-3.5 h-3.5" />
-            )}
-            {prediction ? "Actualizar" : "Predecir"}
-          </button>
+        {!hasHistory && q.data && q.data.length > 0 && (
+          <p className="text-center text-xs text-muted-foreground mt-6 font-mono">
+            Las flechas aparecerán cuando el admin guarde el primer snapshot.
+          </p>
         )}
-      </div>
-
-      {/* Pronósticos públicos */}
-      {locked && <AllPredictions matchId={match.id} finished={finished} />}
+      </main>
     </div>
   );
 }
