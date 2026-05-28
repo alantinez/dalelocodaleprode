@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Minus, Plus, MapPin, Check, Loader2, Trophy, Lock, ChevronDown, ChevronUp, Users } from "lucide-react";
+import { Minus, Plus, MapPin, Check, Loader2, Trophy, Lock, ChevronDown, ChevronUp, Users, ExternalLink } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -55,9 +56,7 @@ function Flag({ team }: { team: Team | null }) {
   );
 }
 
-function ScoreInput({
-  score, onInc, onDec, disabled,
-}: {
+function ScoreInput({ score, onInc, onDec, disabled }: {
   score: number; onInc: () => void; onDec: () => void; disabled: boolean;
 }) {
   return (
@@ -95,13 +94,21 @@ function AllPredictions({ matchId, finished }: { matchId: string; finished: bool
 
   return (
     <div className="mt-3 border-t border-border/40 pt-3">
-      <button type="button" onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between text-xs text-muted-foreground hover:text-foreground transition">
-        <span className="flex items-center gap-1.5">
-          <Users className="w-3.5 h-3.5" />Ver pronósticos del grupo
-        </span>
-        {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-      </button>
+      <div className="flex items-center justify-between">
+        <button type="button" onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition">
+          <Users className="w-3.5 h-3.5" />Ver pronósticos
+          {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        </button>
+        <Link
+          to="/partido/$matchId"
+          params={{ matchId }}
+          className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition font-medium"
+        >
+          Ver todo <ExternalLink className="w-3 h-3" />
+        </Link>
+      </div>
+
       {open && (
         <div className="mt-2 space-y-1.5">
           {isLoading ? (
@@ -109,7 +116,7 @@ function AllPredictions({ matchId, finished }: { matchId: string; finished: bool
           ) : !data || data.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-2">Nadie predijo este partido.</p>
           ) : (
-            data.map((p, i) => {
+            data.slice(0, 5).map((p, i) => {
               const initials = p.profiles?.display_name?.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
               const pts = p.points;
               const ptsColor = pts === null ? "text-muted-foreground" : p.is_exact ? "text-gold" : pts > 0 ? "text-secondary" : "text-destructive";
@@ -130,6 +137,11 @@ function AllPredictions({ matchId, finished }: { matchId: string; finished: bool
                 </div>
               );
             })
+          )}
+          {(data?.length ?? 0) > 5 && (
+            <Link to="/partido/$matchId" params={{ matchId }} className="block text-center text-xs text-primary hover:text-primary/80 transition py-1">
+              Ver los {data!.length} pronósticos →
+            </Link>
           )}
         </div>
       )}
@@ -196,9 +208,8 @@ export function MatchCard({ match, prediction }: { match: MatchWithTeams; predic
         )}
       </div>
 
-      {/* Teams — nombre completo a cada lado, flag centrada */}
+      {/* Teams */}
       <div className="flex items-center gap-2 mb-4">
-        {/* Local */}
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <Flag team={match.home} />
           <div className="min-w-0">
@@ -207,7 +218,6 @@ export function MatchCard({ match, prediction }: { match: MatchWithTeams; predic
           </div>
         </div>
 
-        {/* Score resultado si terminó */}
         {finished ? (
           <div className="font-mono text-lg font-bold text-secondary flex-shrink-0 px-2">
             {match.home_score}–{match.away_score}
@@ -216,7 +226,6 @@ export function MatchCard({ match, prediction }: { match: MatchWithTeams; predic
           <span className="text-muted-foreground/50 text-xs font-mono flex-shrink-0">vs</span>
         )}
 
-        {/* Visitante */}
         <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
           <div className="min-w-0 text-right">
             <div className="font-display font-semibold text-sm leading-tight truncate">{match.away?.name ?? "—"}</div>
@@ -226,7 +235,7 @@ export function MatchCard({ match, prediction }: { match: MatchWithTeams; predic
         </div>
       </div>
 
-      {/* Score inputs — centrados debajo de los equipos */}
+      {/* Score inputs */}
       {!locked && canPredict && (
         <div className="flex items-center justify-center gap-3 mb-4">
           <ScoreInput score={home} onInc={() => setHome((s) => Math.min(20, s + 1))} onDec={() => setHome((s) => Math.max(0, s - 1))} disabled={false} />
