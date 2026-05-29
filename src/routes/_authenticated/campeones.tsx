@@ -38,16 +38,14 @@ function CampeonesPage() {
   const q = useQuery({
     queryKey: ["champion-picks-all"],
     queryFn: async () => {
-  const { data, error } = await supabase.rpc("get_champion_picks");
-  if (error) throw error;
-  return (data ?? []).map((row: any) => ({
-    user_id: row.user_id,
-    is_correct: row.is_correct,
-    points: row.points,
-    profiles: { display_name: row.display_name, avatar_url: row.avatar_url },
-    teams: { id: row.team_id, name: row.team_name, code: row.team_code, flag_url: row.team_flag_url, group: row.team_group },
-  })) as unknown as ChampionPick[];
-},
+      const { data, error } = await supabase
+        .from("champion_predictions")
+        .select("user_id, is_correct, points, profiles(display_name, avatar_url), teams(id, name, code, flag_url, group)")
+        .order("points", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as ChampionPick[];
+    },
+  });
 
   const picks = q.data ?? [];
 
