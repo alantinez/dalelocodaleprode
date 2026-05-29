@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Loader2, Save, ShieldCheck, ShieldAlert, Crown,
   Users, CheckCircle2, XCircle, Clock, Trophy, Search,
-  Trash2, Plus, Swords, CalendarDays, Camera,
+  Trash2, Plus, Swords, CalendarDays, Camera, History,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -55,10 +55,9 @@ const STAGE_LABEL: Record<string, string> = Object.fromEntries(
   KNOCKOUT_STAGES.map((s) => [s.key, s.label])
 );
 
-/* ─── PAGE ─── */
 function AdminPage() {
   const { isAdmin, user, loading } = useAuth();
-  const [tab, setTab] = useState<"participantes" | "resultados" | "knockout" | "campeon">("participantes");
+  const [tab, setTab] = useState<"participantes" | "resultados" | "knockout" | "campeon" | "historial">("participantes");
 
   const claimMut = useMutation({
     mutationFn: async () => {
@@ -108,6 +107,7 @@ function AdminPage() {
             { key: "resultados",    label: "Resultados",    icon: <Save className="w-4 h-4" /> },
             { key: "knockout",      label: "⚽ Knockout",   icon: null },
             { key: "campeon",       label: "🏆 Campeón",    icon: null },
+            { key: "historial",     label: "📋 Historial",  icon: null },
           ] as const).map((t) => (
             <button key={t.key} onClick={() => setTab(t.key)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition ${
@@ -122,21 +122,18 @@ function AdminPage() {
         {tab === "resultados"    && <AdminMatches />}
         {tab === "knockout"      && <AdminKnockout />}
         {tab === "campeon"       && <AdminChampion />}
+        {tab === "historial"     && <AdminHistorial />}
       </main>
     </div>
   );
 }
 
-/* ─── SNAPSHOT BUTTON ─── */
 function SnapshotButton() {
   const qc = useQueryClient();
   const [label, setLabel] = useState("");
-
   const mut = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.rpc("admin_snapshot_ranking", {
-        p_label: label.trim() || null,
-      });
+      const { error } = await supabase.rpc("admin_snapshot_ranking", { p_label: label.trim() || null });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -146,7 +143,6 @@ function SnapshotButton() {
     },
     onError: (e: Error) => toast.error(e.message),
   });
-
   return (
     <div className="glass rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-3 border border-primary/20">
       <Camera className="w-5 h-5 text-primary flex-shrink-0" />
@@ -154,25 +150,15 @@ function SnapshotButton() {
         <p className="text-xs font-mono uppercase tracking-widest text-primary mb-0.5">Snapshot del ranking</p>
         <p className="text-xs text-muted-foreground">Guardá el estado actual para mostrar las flechas ↑↓ en el ranking.</p>
       </div>
-      <input
-        value={label}
-        onChange={(e) => setLabel(e.target.value)}
-        placeholder="Etiqueta (ej: Fecha 3)"
-        className="glass rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 w-full sm:w-44"
-      />
-      <Button
-        onClick={() => mut.mutate()}
-        disabled={mut.isPending}
-        size="sm"
-        className="bg-primary text-background font-semibold whitespace-nowrap"
-      >
+      <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Etiqueta (ej: Fecha 3)"
+        className="glass rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 w-full sm:w-44" />
+      <Button onClick={() => mut.mutate()} disabled={mut.isPending} size="sm" className="bg-primary text-background font-semibold whitespace-nowrap">
         {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar snapshot"}
       </Button>
     </div>
   );
 }
 
-/* ─── RESULTADOS ─── */
 function AdminMatches() {
   const qc = useQueryClient();
   const [filter, setFilter] = useState<"todos" | "pendientes" | "finalizados">("pendientes");
@@ -193,9 +179,11 @@ function AdminMatches() {
 
   const saveMut = useMutation({
     mutationFn: async (vars: { id: string; home: number; away: number }) => {
-      const { error } = await supabase.from("matches")
-        .update({ home_score: vars.home, away_score: vars.away, status: "finished" })
-        .eq("id", vars.id);
+      const { error } = await supabase.rpc("admin_save_result", {
+        p_match_id: vars.id,
+        p_home_score: vars.home,
+        p_away_score: vars.away,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -203,6 +191,7 @@ function AdminMatches() {
       qc.invalidateQueries({ queryKey: ["admin-matches"] });
       qc.invalidateQueries({ queryKey: ["ranking"] });
       qc.invalidateQueries({ queryKey: ["matches"] });
+      qc.invalidateQueries({ queryKey: ["audit-log"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -219,36 +208,23 @@ function AdminMatches() {
   return (
     <div>
       <SnapshotButton />
-
       <p className="text-muted-foreground mb-4">
-        Al guardar un partido, se recalculan los puntos automáticamente.
-        Después de cargar todos los resultados de una fecha, guardá el snapshot para actualizar las flechas del ranking.
+        Al guardar un partido, se recalculan los puntos y se registra en el historial automáticamente.
       </p>
-
       <div className="flex gap-2 mb-6">
         {(["pendientes", "finalizados", "todos"] as const).map((f) => (
           <button key={f} onClick={() => setFilter(f)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium uppercase tracking-wider transition ${
               filter === f ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
-            }`}>
-            {f}
-          </button>
+            }`}>{f}</button>
         ))}
       </div>
-
       {matchesQ.isLoading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-6 h-6 animate-spin text-primary" />
-        </div>
+        <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : (
         <div className="space-y-3">
           {filtered.map((m) => (
-            <AdminMatchRow
-              key={m.id}
-              match={m}
-              onSave={(h, a) => saveMut.mutate({ id: m.id, home: h, away: a })}
-              saving={saveMut.isPending}
-            />
+            <AdminMatchRow key={m.id} match={m} onSave={(h, a) => saveMut.mutate({ id: m.id, home: h, away: a })} saving={saveMut.isPending} />
           ))}
         </div>
       )}
@@ -256,15 +232,10 @@ function AdminMatches() {
   );
 }
 
-function AdminMatchRow({ match, onSave, saving }: {
-  match: AdminMatch;
-  onSave: (home: number, away: number) => void;
-  saving: boolean;
-}) {
+function AdminMatchRow({ match, onSave, saving }: { match: AdminMatch; onSave: (home: number, away: number) => void; saving: boolean }) {
   const [home, setHome] = useState<string>(match.home_score?.toString() ?? "");
   const [away, setAway] = useState<string>(match.away_score?.toString() ?? "");
   const isFinished = match.status === "finished";
-
   return (
     <div className={`glass-strong rounded-2xl p-4 sm:p-5 ${isFinished ? "ring-1 ring-primary/40" : ""}`}>
       <div className="flex items-center justify-between mb-3 text-[10px] sm:text-xs font-mono uppercase tracking-widest text-muted-foreground">
@@ -281,13 +252,9 @@ function AdminMatchRow({ match, onSave, saving }: {
           {match.home?.flag_url && <img src={match.home.flag_url} alt="" className="w-6 h-6 rounded shrink-0" />}
         </div>
         <div className="flex items-center gap-1.5">
-          <Input type="number" inputMode="numeric" min={0} max={20} value={home}
-            onChange={(e) => setHome(e.target.value)}
-            className="w-14 h-12 text-center font-display text-2xl font-bold" />
+          <Input type="number" inputMode="numeric" min={0} max={20} value={home} onChange={(e) => setHome(e.target.value)} className="w-14 h-12 text-center font-display text-2xl font-bold" />
           <span className="text-muted-foreground">·</span>
-          <Input type="number" inputMode="numeric" min={0} max={20} value={away}
-            onChange={(e) => setAway(e.target.value)}
-            className="w-14 h-12 text-center font-display text-2xl font-bold" />
+          <Input type="number" inputMode="numeric" min={0} max={20} value={away} onChange={(e) => setAway(e.target.value)} className="w-14 h-12 text-center font-display text-2xl font-bold" />
         </div>
         <div className="flex items-center gap-2 min-w-0">
           {match.away?.flag_url && <img src={match.away.flag_url} alt="" className="w-6 h-6 rounded shrink-0" />}
@@ -300,23 +267,20 @@ function AdminMatchRow({ match, onSave, saving }: {
           if (isNaN(h) || isNaN(a) || h < 0 || a < 0) { toast.error("Ingresá goles válidos"); return; }
           onSave(h, a);
         }} disabled={saving} className="bg-gradient-to-r from-primary to-secondary text-background font-semibold">
-          {saving
-            ? <Loader2 className="w-4 h-4 animate-spin" />
-            : <><Save className="w-3.5 h-3.5 mr-1.5" />{isFinished ? "Actualizar" : "Guardar final"}</>}
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-3.5 h-3.5 mr-1.5" />{isFinished ? "Actualizar" : "Guardar final"}</>}
         </Button>
       </div>
     </div>
   );
 }
 
-/* ─── KNOCKOUT ─── */
 function AdminKnockout() {
   const qc = useQueryClient();
-  const [stage, setStage]        = useState("r32");
-  const [homeId, setHomeId]      = useState("");
-  const [awayId, setAwayId]      = useState("");
+  const [stage, setStage] = useState("r32");
+  const [homeId, setHomeId] = useState("");
+  const [awayId, setAwayId] = useState("");
   const [kickoffStr, setKickoff] = useState("");
-  const [venue, setVenue]        = useState("");
+  const [venue, setVenue] = useState("");
   const [teamSearch, setTeamSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -337,8 +301,7 @@ function AdminKnockout() {
         .select(`id, kickoff, stage, group, venue, status, home_score, away_score,
            home:teams!matches_home_team_id_fkey(name,code,flag_url),
            away:teams!matches_away_team_id_fkey(name,code,flag_url)`)
-        .neq("stage", "group")
-        .order("kickoff", { ascending: true });
+        .neq("stage", "group").order("kickoff", { ascending: true });
       if (error) throw error;
       return data as unknown as AdminMatch[];
     },
@@ -349,11 +312,8 @@ function AdminKnockout() {
       if (!homeId || !awayId || !kickoffStr) throw new Error("Completá todos los campos obligatorios");
       if (homeId === awayId) throw new Error("El local y visitante deben ser distintos");
       const { error } = await supabase.rpc("admin_create_match", {
-        p_stage: stage,
-        p_home_team_id: homeId,
-        p_away_team_id: awayId,
-        p_kickoff: new Date(kickoffStr).toISOString(),
-        p_venue: venue || null,
+        p_stage: stage, p_home_team_id: homeId, p_away_team_id: awayId,
+        p_kickoff: new Date(kickoffStr).toISOString(), p_venue: venue || null,
       });
       if (error) throw error;
     },
@@ -382,9 +342,7 @@ function AdminKnockout() {
 
   const filteredTeams = useMemo(() =>
     (teamsQ.data ?? []).filter((t) =>
-      teamSearch === "" ||
-      t.name.toLowerCase().includes(teamSearch.toLowerCase()) ||
-      t.code.toLowerCase().includes(teamSearch.toLowerCase())
+      teamSearch === "" || t.name.toLowerCase().includes(teamSearch.toLowerCase()) || t.code.toLowerCase().includes(teamSearch.toLowerCase())
     ), [teamsQ.data, teamSearch]);
 
   const teamById = useMemo(() => {
@@ -420,12 +378,8 @@ function AdminKnockout() {
           </div>
         </div>
       )}
-
       <div className="glass-strong rounded-2xl p-5 border border-primary/20">
-        <div className="flex items-center gap-2 mb-4">
-          <Plus className="w-4 h-4 text-primary" />
-          <h3 className="font-display font-bold text-lg">Agregar partido knockout</h3>
-        </div>
+        <div className="flex items-center gap-2 mb-4"><Plus className="w-4 h-4 text-primary" /><h3 className="font-display font-bold text-lg">Agregar partido knockout</h3></div>
         <div className="grid sm:grid-cols-2 gap-4">
           <div className="sm:col-span-2">
             <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">Fase</label>
@@ -444,9 +398,7 @@ function AdminKnockout() {
               className="w-full glass rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40" />
           </div>
           <div>
-            <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">
-              Local {homeId && <span className="text-primary ml-1">✓ {teamById.get(homeId)}</span>}
-            </label>
+            <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">Local {homeId && <span className="text-primary ml-1">✓ {teamById.get(homeId)}</span>}</label>
             <div className="glass rounded-xl max-h-36 overflow-y-auto divide-y divide-border/30">
               {filteredTeams.map((t) => (
                 <button key={t.id} type="button" onClick={() => setHomeId(t.id)}
@@ -459,9 +411,7 @@ function AdminKnockout() {
             </div>
           </div>
           <div>
-            <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">
-              Visitante {awayId && <span className="text-secondary ml-1">✓ {teamById.get(awayId)}</span>}
-            </label>
+            <label className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2 block">Visitante {awayId && <span className="text-secondary ml-1">✓ {teamById.get(awayId)}</span>}</label>
             <div className="glass rounded-xl max-h-36 overflow-y-auto divide-y divide-border/30">
               {filteredTeams.map((t) => (
                 <button key={t.id} type="button" onClick={() => setAwayId(t.id)}
@@ -491,17 +441,12 @@ function AdminKnockout() {
           </Button>
         </div>
       </div>
-
       <div>
-        <h3 className="font-display font-bold text-lg mb-4 flex items-center gap-2">
-          <CalendarDays className="w-4 h-4 text-primary" />Partidos cargados
-        </h3>
+        <h3 className="font-display font-bold text-lg mb-4 flex items-center gap-2"><CalendarDays className="w-4 h-4 text-primary" />Partidos cargados</h3>
         {knockoutQ.isLoading ? (
           <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
         ) : byStage.size === 0 ? (
-          <div className="glass-strong rounded-2xl p-10 text-center text-muted-foreground text-sm">
-            Todavía no hay partidos knockout cargados.
-          </div>
+          <div className="glass-strong rounded-2xl p-10 text-center text-muted-foreground text-sm">Todavía no hay partidos knockout cargados.</div>
         ) : (
           <div className="space-y-6">
             {KNOCKOUT_STAGES.filter((s) => byStage.has(s.key)).map((s) => (
@@ -517,16 +462,9 @@ function AdminKnockout() {
                         {m.away?.flag_url && <img src={m.away.flag_url} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" />}
                         <span className="truncate">{m.away?.name}</span>
                       </div>
-                      <span className="text-xs font-mono text-muted-foreground hidden sm:block flex-shrink-0">
-                        {formatKickoff(new Date(m.kickoff))}
-                      </span>
-                      {m.status === "finished" && (
-                        <span className="text-xs font-mono font-bold text-secondary flex-shrink-0">
-                          {m.home_score}-{m.away_score}
-                        </span>
-                      )}
-                      <button onClick={() => setDeletingId(m.id)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg glass hover:bg-destructive/20 hover:text-destructive transition flex-shrink-0">
+                      <span className="text-xs font-mono text-muted-foreground hidden sm:block flex-shrink-0">{formatKickoff(new Date(m.kickoff))}</span>
+                      {m.status === "finished" && <span className="text-xs font-mono font-bold text-secondary flex-shrink-0">{m.home_score}-{m.away_score}</span>}
+                      <button onClick={() => setDeletingId(m.id)} className="w-8 h-8 flex items-center justify-center rounded-lg glass hover:bg-destructive/20 hover:text-destructive transition flex-shrink-0">
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -541,11 +479,9 @@ function AdminKnockout() {
   );
 }
 
-/* ─── CAMPEÓN ─── */
 function AdminChampion() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
-
   const teamsQ = useQuery({
     queryKey: ["teams-all"],
     queryFn: async () => {
@@ -554,30 +490,21 @@ function AdminChampion() {
       return data;
     },
   });
-
   const setChampMut = useMutation({
     mutationFn: async (teamId: string) => {
       const { error } = await supabase.rpc("admin_set_champion", { winning_team_id: teamId });
       if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success("¡Campeón declarado! 10 pts otorgados ✅");
-      qc.invalidateQueries();
-    },
+    onSuccess: () => { toast.success("¡Campeón declarado! 10 pts otorgados ✅"); qc.invalidateQueries(); },
     onError: (e: Error) => toast.error(e.message),
   });
-
   const teams = ((teamsQ.data ?? []) as any[]).filter((t) =>
     search === "" || t.name.toLowerCase().includes(search.toLowerCase()) || t.code.toLowerCase().includes(search.toLowerCase())
   );
-
   return (
     <div className="glass-strong rounded-2xl p-5 border border-gold/30">
       <h3 className="font-display font-bold text-xl text-gold mb-1">🏆 Declarar campeón del Mundial</h3>
-      <p className="text-sm text-muted-foreground mb-5">
-        Usá esto cuando termine el torneo. Al confirmar, se otorgan <b>10 puntos</b> a todos los que lo eligieron.
-        <br /><span className="text-destructive font-semibold">⚠️ Esta acción no se puede deshacer.</span>
-      </p>
+      <p className="text-sm text-muted-foreground mb-5">Usá esto cuando termine el torneo. Al confirmar, se otorgan <b>10 puntos</b> a todos los que lo eligieron.<br /><span className="text-destructive font-semibold">⚠️ Esta acción no se puede deshacer.</span></p>
       <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar equipo..."
         className="w-full glass rounded-xl px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-gold/40" />
       {teamsQ.isLoading ? (
@@ -602,7 +529,84 @@ function AdminChampion() {
   );
 }
 
-/* ─── PARTICIPANTES ─── */
+function AdminHistorial() {
+  const q = useQuery({
+    queryKey: ["audit-log"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("result_audit_log")
+        .select(`id, changed_at, home_score_before, away_score_before, home_score_after, away_score_after,
+          matches(group, home:teams!matches_home_team_id_fkey(name,code,flag_url), away:teams!matches_away_team_id_fkey(name,code,flag_url)),
+          profiles:changed_by(display_name)`)
+        .order("changed_at", { ascending: false }).limit(200);
+      if (error) throw error;
+      return data ?? [];
+    },
+    refetchInterval: 30_000,
+  });
+  const fmt = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
+      + " " + d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  };
+  return (
+    <div>
+      <p className="text-muted-foreground mb-2">Cada resultado cargado o modificado queda registrado permanentemente.</p>
+      <p className="text-xs text-muted-foreground mb-6">
+        También visible para todos los participantes en{" "}
+        <a href="/historial" className="text-primary underline">/historial</a>.
+      </p>
+      {q.isLoading ? (
+        <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+      ) : !q.data || q.data.length === 0 ? (
+        <div className="glass-strong rounded-2xl p-10 text-center">
+          <History className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
+          <p className="text-muted-foreground text-sm">Sin cambios todavía. Aparecerán acá cada vez que cargues un resultado.</p>
+        </div>
+      ) : (
+        <div className="glass-strong rounded-2xl overflow-hidden">
+          <div className="px-5 py-3 border-b border-border/50 flex items-center gap-2 text-sm font-medium">
+            <History className="w-4 h-4 text-primary" />
+            {q.data.length} {q.data.length === 1 ? "cambio" : "cambios"} registrados
+          </div>
+          <div className="divide-y divide-border/20">
+            {(q.data as any[]).map((row: any) => {
+              const m = row.matches;
+              const isEdit = row.home_score_before !== null;
+              return (
+                <div key={row.id} className="px-5 py-3.5 flex items-center justify-between gap-3 hover:bg-card/40 transition">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 text-sm font-medium mb-1 flex-wrap">
+                      {m?.group && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/15 text-primary">Grupo {m.group}</span>}
+                      {m?.home?.flag_url && <img src={m.home.flag_url} alt="" className="w-4 h-4 rounded-full object-cover" />}
+                      <span className="truncate">{m?.home?.name}</span>
+                      <span className="text-muted-foreground text-xs">vs</span>
+                      {m?.away?.flag_url && <img src={m.away.flag_url} alt="" className="w-4 h-4 rounded-full object-cover" />}
+                      <span className="truncate">{m?.away?.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {isEdit && <span className="font-mono text-sm text-muted-foreground line-through">{row.home_score_before}–{row.away_score_before}</span>}
+                      {isEdit && <span className="text-muted-foreground text-xs">→</span>}
+                      <span className={`font-mono font-bold ${isEdit ? "text-orange-400" : "text-secondary"}`}>{row.home_score_after}–{row.away_score_after}</span>
+                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isEdit ? "bg-orange-400/15 text-orange-400" : "bg-secondary/15 text-secondary"}`}>
+                        {isEdit ? "Modificado" : "Cargado"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0 text-[10px] text-muted-foreground">
+                    <div>{fmt(row.changed_at)}</div>
+                    <div className="text-primary">{row.profiles?.display_name ?? "Admin"}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminParticipants() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -672,7 +676,6 @@ function AdminParticipants() {
           </div>
         </div>
       )}
-
       <div className="grid grid-cols-3 gap-3 mb-6">
         <div className="glass rounded-2xl p-4 text-center">
           <div className="font-display font-bold text-3xl">{participants.length}</div>
@@ -687,7 +690,6 @@ function AdminParticipants() {
           <div className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-mono">Pendientes ⏳</div>
         </div>
       </div>
-
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -703,7 +705,6 @@ function AdminParticipants() {
           ))}
         </div>
       </div>
-
       {q.isLoading ? (
         <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
       ) : filtered.length === 0 ? (
@@ -715,9 +716,7 @@ function AdminParticipants() {
           {filtered.map((p) => (
             <div key={p.id} className={`glass-strong rounded-2xl p-4 flex items-center gap-3 ${p.paid ? "ring-1 ring-secondary/30" : ""}`}>
               <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary/30 to-secondary/30 flex items-center justify-center overflow-hidden flex-shrink-0">
-                {p.avatar_url
-                  ? <img src={p.avatar_url} alt="" className="w-full h-full object-cover" />
-                  : <span className="font-bold text-sm">{p.display_name[0]?.toUpperCase()}</span>}
+                {p.avatar_url ? <img src={p.avatar_url} alt="" className="w-full h-full object-cover" /> : <span className="font-bold text-sm">{p.display_name[0]?.toUpperCase()}</span>}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm truncate">{p.display_name}</div>
@@ -736,12 +735,9 @@ function AdminParticipants() {
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition active:scale-95 flex-shrink-0 ${
                   p.paid ? "bg-secondary/20 text-secondary hover:bg-destructive/20 hover:text-destructive" : "bg-primary/20 text-primary hover:bg-secondary/20 hover:text-secondary"
                 }`}>
-                {p.paid
-                  ? <><CheckCircle2 className="w-4 h-4" /><span className="hidden sm:inline">Pagó</span></>
-                  : <><XCircle className="w-4 h-4" /><span className="hidden sm:inline">Pendiente</span></>}
+                {p.paid ? <><CheckCircle2 className="w-4 h-4" /><span className="hidden sm:inline">Pagó</span></> : <><XCircle className="w-4 h-4" /><span className="hidden sm:inline">Pendiente</span></>}
               </button>
-              <button onClick={() => setDeletingId(p.id)}
-                className="w-9 h-9 flex items-center justify-center rounded-xl glass hover:bg-destructive/20 hover:text-destructive transition flex-shrink-0">
+              <button onClick={() => setDeletingId(p.id)} className="w-9 h-9 flex items-center justify-center rounded-xl glass hover:bg-destructive/20 hover:text-destructive transition flex-shrink-0">
                 <Trash2 className="w-4 h-4" />
               </button>
             </div>
