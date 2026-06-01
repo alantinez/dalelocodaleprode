@@ -18,43 +18,30 @@ export const Route = createFileRoute("/_authenticated/admin")({
 });
 
 type AdminMatch = {
-  id: string;
-  kickoff: string;
-  group: string | null;
-  stage: string;
-  venue: string | null;
-  status: "scheduled" | "live" | "finished" | "postponed";
-  home_score: number | null;
-  away_score: number | null;
+  id: string; kickoff: string; group: string | null; stage: string;
+  venue: string | null; status: "scheduled" | "live" | "finished" | "postponed";
+  home_score: number | null; away_score: number | null;
   home: { name: string; code: string; flag_url: string | null } | null;
   away: { name: string; code: string; flag_url: string | null } | null;
 };
 
 type Participant = {
-  id: string;
-  display_name: string;
-  avatar_url: string | null;
-  total_points: number;
-  exact_hits: number;
-  paid: boolean;
-  paid_at: string | null;
-  email: string;
-  created_at: string;
+  id: string; display_name: string; avatar_url: string | null;
+  total_points: number; exact_hits: number; paid: boolean;
+  paid_at: string | null; email: string; created_at: string;
 };
 
 const KNOCKOUT_STAGES = [
-  { key: "r32",   label: "Octavos de Final" },
-  { key: "r16",   label: "Dieciseisavos de Final" },
-  { key: "qf",    label: "Cuartos de Final" },
-  { key: "sf",    label: "Semifinales" },
+  { key: "r32", label: "Octavos de Final" },
+  { key: "r16", label: "Dieciseisavos de Final" },
+  { key: "qf",  label: "Cuartos de Final" },
+  { key: "sf",  label: "Semifinales" },
   { key: "third", label: "3° y 4° Puesto" },
   { key: "final", label: "Gran Final" },
 ];
+const STAGE_LABEL: Record<string, string> = Object.fromEntries(KNOCKOUT_STAGES.map((s) => [s.key, s.label]));
 
-const STAGE_LABEL: Record<string, string> = Object.fromEntries(
-  KNOCKOUT_STAGES.map((s) => [s.key, s.label])
-);
-
+/* ─── PAGE ─── */
 function AdminPage() {
   const { isAdmin, user, loading } = useAuth();
   const [tab, setTab] = useState<"participantes" | "resultados" | "knockout" | "campeon" | "historial">("participantes");
@@ -134,17 +121,10 @@ function SnapshotButton() {
   const snapshotsQ = useQuery({
     queryKey: ["admin-snapshots"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ranking_history")
-        .select("snapshot_at, label")
-        .order("snapshot_at", { ascending: false });
+      const { data, error } = await supabase.from("ranking_history").select("snapshot_at, label").order("snapshot_at", { ascending: false });
       if (error) throw error;
       const seen = new Set<string>();
-      return (data ?? []).filter((r: any) => {
-        if (seen.has(r.snapshot_at)) return false;
-        seen.add(r.snapshot_at);
-        return true;
-      });
+      return (data ?? []).filter((r: any) => { if (seen.has(r.snapshot_at)) return false; seen.add(r.snapshot_at); return true; });
     },
     refetchInterval: 30_000,
   });
@@ -155,8 +135,7 @@ function SnapshotButton() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("📸 Snapshot guardado");
-      setLabel("");
+      toast.success("📸 Snapshot guardado"); setLabel("");
       qc.invalidateQueries({ queryKey: ["ranking-history-latest"] });
       qc.invalidateQueries({ queryKey: ["admin-snapshots"] });
     },
@@ -182,22 +161,18 @@ function SnapshotButton() {
       const { error } = await supabase.rpc("admin_clear_snapshots");
       if (error) throw error;
     },
-    onSuccess: () => {
-      toast.success("Todos los snapshots eliminados");
-      qc.invalidateQueries();
-    },
+    onSuccess: () => { toast.success("Todos los snapshots eliminados"); qc.invalidateQueries(); },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const snapshots = snapshotsQ.data ?? [];
   const fmt = (iso: string) => {
     const d = new Date(iso);
-    return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
-      + " " + d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
   };
 
   return (
-    <div className="glass rounded-2xl p-4 mb-6 border border-primary/20 space-y-4">
+    <div className="glass rounded-2xl p-4 mb-4 border border-primary/20 space-y-4">
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
         <Camera className="w-5 h-5 text-primary flex-shrink-0" />
         <div className="flex-1 min-w-0">
@@ -206,17 +181,16 @@ function SnapshotButton() {
         </div>
         <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Etiqueta (ej: Fecha 3)"
           className="glass rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 w-full sm:w-44" />
-        <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending} size="sm"
-          className="bg-primary text-background font-semibold whitespace-nowrap">
+        <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending} size="sm" className="bg-primary text-background font-semibold whitespace-nowrap">
           {saveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar snapshot"}
         </Button>
       </div>
       {snapshots.length > 0 && (
         <div className="border-t border-border/40 pt-3">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Snapshots guardados ({snapshots.length})</p>
-            <button onClick={() => { if (confirm("¿Borrar TODOS los snapshots?")) clearMut.mutate(); }}
-              disabled={clearMut.isPending} className="text-xs text-destructive hover:text-destructive/80 font-mono transition">
+            <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Snapshots ({snapshots.length})</p>
+            <button onClick={() => { if (confirm("¿Borrar TODOS los snapshots?")) clearMut.mutate(); }} disabled={clearMut.isPending}
+              className="text-xs text-destructive hover:text-destructive/80 font-mono transition">
               {clearMut.isPending ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "Borrar todos"}
             </button>
           </div>
@@ -227,8 +201,7 @@ function SnapshotButton() {
                   <span className="text-sm font-medium">{s.label ?? "Sin etiqueta"}</span>
                   <span className="text-xs text-muted-foreground ml-2 font-mono">{fmt(s.snapshot_at)}</span>
                 </div>
-                <button onClick={() => { if (confirm(`¿Eliminar snapshot "${s.label}"?`)) deleteMut.mutate(s.snapshot_at); }}
-                  disabled={deleteMut.isPending}
+                <button onClick={() => { if (confirm(`¿Eliminar snapshot "${s.label}"?`)) deleteMut.mutate(s.snapshot_at); }} disabled={deleteMut.isPending}
                   className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-destructive/20 hover:text-destructive transition">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -237,6 +210,31 @@ function SnapshotButton() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/* ─── LOGROS ─── */
+function RecalcularLogrosButton() {
+  const mut = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc("unlock_achievements_all");
+      if (error) throw error;
+    },
+    onSuccess: () => toast.success("🏅 Logros recalculados para todos"),
+    onError: (e: Error) => toast.error(e.message),
+  });
+  return (
+    <div className="glass rounded-2xl p-4 mb-6 border border-gold/20 flex items-center gap-3">
+      <span className="text-xl flex-shrink-0">🏅</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-xs font-mono uppercase tracking-widest text-gold mb-0.5">Logros</p>
+        <p className="text-xs text-muted-foreground">Recalculá los logros de todos después de cargar resultados.</p>
+      </div>
+      <Button onClick={() => mut.mutate()} disabled={mut.isPending} size="sm"
+        className="bg-gold/20 text-gold hover:bg-gold/30 font-semibold whitespace-nowrap border border-gold/30 flex-shrink-0">
+        {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Recalcular logros"}
+      </Button>
     </div>
   );
 }
@@ -262,9 +260,7 @@ function AdminMatches() {
 
   const saveMut = useMutation({
     mutationFn: async (vars: { id: string; home: number; away: number }) => {
-      const { error } = await supabase.rpc("admin_save_result", {
-        p_match_id: vars.id, p_home_score: vars.home, p_away_score: vars.away,
-      });
+      const { error } = await supabase.rpc("admin_save_result", { p_match_id: vars.id, p_home_score: vars.home, p_away_score: vars.away });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -289,8 +285,9 @@ function AdminMatches() {
   return (
     <div>
       <SnapshotButton />
+      <RecalcularLogrosButton />
       <p className="text-muted-foreground mb-4">
-        Al guardar un partido, se recalculan los puntos y se registra en el historial. Si cometés un error, usá "Revertir resultado".
+        Al guardar un partido se recalculan los puntos. Si cometés un error, usá "Revertir resultado".
       </p>
       <div className="flex gap-2 mb-6">
         {(["pendientes", "finalizados", "todos"] as const).map((f) => (
@@ -322,10 +319,7 @@ function AdminMatches() {
 }
 
 function AdminMatchRow({ match, onSave, saving, onRefresh }: {
-  match: AdminMatch;
-  onSave: (home: number, away: number) => void;
-  saving: boolean;
-  onRefresh: () => void;
+  match: AdminMatch; onSave: (home: number, away: number) => void; saving: boolean; onRefresh: () => void;
 }) {
   const [home, setHome] = useState<string>(match.home_score?.toString() ?? "");
   const [away, setAway] = useState<string>(match.away_score?.toString() ?? "");
@@ -333,15 +327,10 @@ function AdminMatchRow({ match, onSave, saving, onRefresh }: {
   const isFinished = match.status === "finished";
 
   const handleRevert = async () => {
-    if (!confirm(`¿Revertir el resultado de ${match.home?.name} vs ${match.away?.name}?\n\nSe restan los puntos calculados y el partido vuelve a "pendiente".`)) return;
+    if (!confirm(`¿Revertir el resultado de ${match.home?.name} vs ${match.away?.name}?\n\nSe restan los puntos y el partido vuelve a "pendiente".`)) return;
     setReverting(true);
     const { error } = await supabase.rpc("admin_reset_result", { p_match_id: match.id });
-    if (error) {
-      toast.error(error.message);
-    } else {
-      toast.success("↩️ Resultado revertido");
-      onRefresh();
-    }
+    if (error) { toast.error(error.message); } else { toast.success("↩️ Resultado revertido"); onRefresh(); }
     setReverting(false);
   };
 
@@ -361,11 +350,9 @@ function AdminMatchRow({ match, onSave, saving, onRefresh }: {
           {match.home?.flag_url && <img src={match.home.flag_url} alt="" className="w-6 h-6 rounded shrink-0" />}
         </div>
         <div className="flex items-center gap-1.5">
-          <Input type="number" inputMode="numeric" min={0} max={20} value={home}
-            onChange={(e) => setHome(e.target.value)} className="w-14 h-12 text-center font-display text-2xl font-bold" />
+          <Input type="number" inputMode="numeric" min={0} max={20} value={home} onChange={(e) => setHome(e.target.value)} className="w-14 h-12 text-center font-display text-2xl font-bold" />
           <span className="text-muted-foreground">·</span>
-          <Input type="number" inputMode="numeric" min={0} max={20} value={away}
-            onChange={(e) => setAway(e.target.value)} className="w-14 h-12 text-center font-display text-2xl font-bold" />
+          <Input type="number" inputMode="numeric" min={0} max={20} value={away} onChange={(e) => setAway(e.target.value)} className="w-14 h-12 text-center font-display text-2xl font-bold" />
         </div>
         <div className="flex items-center gap-2 min-w-0">
           {match.away?.flag_url && <img src={match.away.flag_url} alt="" className="w-6 h-6 rounded shrink-0" />}
@@ -373,15 +360,12 @@ function AdminMatchRow({ match, onSave, saving, onRefresh }: {
         </div>
       </div>
       <div className="mt-3 flex items-center justify-between gap-3">
-        {/* Botón revertir — solo si está finalizado */}
         {isFinished ? (
           <button onClick={handleRevert} disabled={reverting}
             className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition glass rounded-lg px-3 py-2 disabled:opacity-50">
-            {reverting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-            Revertir
+            {reverting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />} Revertir
           </button>
         ) : <div />}
-
         <Button size="sm" onClick={() => {
           const h = parseInt(home, 10), a = parseInt(away, 10);
           if (isNaN(h) || isNaN(a) || h < 0 || a < 0) { toast.error("Ingresá goles válidos"); return; }
@@ -398,10 +382,8 @@ function AdminMatchRow({ match, onSave, saving, onRefresh }: {
 function AdminKnockout() {
   const qc = useQueryClient();
   const [stage, setStage] = useState("r32");
-  const [homeId, setHomeId] = useState("");
-  const [awayId, setAwayId] = useState("");
-  const [kickoffStr, setKickoff] = useState("");
-  const [venue, setVenue] = useState("");
+  const [homeId, setHomeId] = useState(""); const [awayId, setAwayId] = useState("");
+  const [kickoffStr, setKickoff] = useState(""); const [venue, setVenue] = useState("");
   const [teamSearch, setTeamSearch] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -439,10 +421,8 @@ function AdminKnockout() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Partido creado ✅");
-      setHomeId(""); setAwayId(""); setKickoff(""); setVenue("");
-      qc.invalidateQueries({ queryKey: ["admin-knockout-matches"] });
-      qc.invalidateQueries({ queryKey: ["matches"] });
+      toast.success("Partido creado ✅"); setHomeId(""); setAwayId(""); setKickoff(""); setVenue("");
+      qc.invalidateQueries({ queryKey: ["admin-knockout-matches"] }); qc.invalidateQueries({ queryKey: ["matches"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -453,31 +433,21 @@ function AdminKnockout() {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Partido eliminado");
-      setDeletingId(null);
-      qc.invalidateQueries({ queryKey: ["admin-knockout-matches"] });
-      qc.invalidateQueries({ queryKey: ["matches"] });
+      toast.success("Partido eliminado"); setDeletingId(null);
+      qc.invalidateQueries({ queryKey: ["admin-knockout-matches"] }); qc.invalidateQueries({ queryKey: ["matches"] });
     },
     onError: (e: Error) => { toast.error(e.message); setDeletingId(null); },
   });
 
   const filteredTeams = useMemo(() =>
-    (teamsQ.data ?? []).filter((t) =>
-      teamSearch === "" || t.name.toLowerCase().includes(teamSearch.toLowerCase()) || t.code.toLowerCase().includes(teamSearch.toLowerCase())
-    ), [teamsQ.data, teamSearch]);
+    (teamsQ.data ?? []).filter((t) => teamSearch === "" || t.name.toLowerCase().includes(teamSearch.toLowerCase()) || t.code.toLowerCase().includes(teamSearch.toLowerCase())),
+    [teamsQ.data, teamSearch]);
 
-  const teamById = useMemo(() => {
-    const m = new Map<string, string>();
-    (teamsQ.data ?? []).forEach((t) => m.set(t.id, t.name));
-    return m;
-  }, [teamsQ.data]);
+  const teamById = useMemo(() => { const m = new Map<string, string>(); (teamsQ.data ?? []).forEach((t) => m.set(t.id, t.name)); return m; }, [teamsQ.data]);
 
   const byStage = useMemo(() => {
     const map = new Map<string, AdminMatch[]>();
-    for (const m of knockoutQ.data ?? []) {
-      if (!map.has(m.stage)) map.set(m.stage, []);
-      map.get(m.stage)!.push(m);
-    }
+    for (const m of knockoutQ.data ?? []) { if (!map.has(m.stage)) map.set(m.stage, []); map.get(m.stage)!.push(m); }
     return map;
   }, [knockoutQ.data]);
 
@@ -606,43 +576,27 @@ function AdminChampion() {
   const [search, setSearch] = useState("");
   const teamsQ = useQuery({
     queryKey: ["teams-all"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("teams").select("id, name, code, flag_url, group").order("name");
-      if (error) throw error;
-      return data;
-    },
+    queryFn: async () => { const { data, error } = await supabase.from("teams").select("id, name, code, flag_url, group").order("name"); if (error) throw error; return data; },
   });
   const setChampMut = useMutation({
-    mutationFn: async (teamId: string) => {
-      const { error } = await supabase.rpc("admin_set_champion", { winning_team_id: teamId });
-      if (error) throw error;
-    },
+    mutationFn: async (teamId: string) => { const { error } = await supabase.rpc("admin_set_champion", { winning_team_id: teamId }); if (error) throw error; },
     onSuccess: () => { toast.success("¡Campeón declarado! 10 pts otorgados ✅"); qc.invalidateQueries(); },
     onError: (e: Error) => toast.error(e.message),
   });
-  const teams = ((teamsQ.data ?? []) as any[]).filter((t) =>
-    search === "" || t.name.toLowerCase().includes(search.toLowerCase()) || t.code.toLowerCase().includes(search.toLowerCase())
-  );
+  const teams = ((teamsQ.data ?? []) as any[]).filter((t) => search === "" || t.name.toLowerCase().includes(search.toLowerCase()) || t.code.toLowerCase().includes(search.toLowerCase()));
   return (
     <div className="glass-strong rounded-2xl p-5 border border-gold/30">
       <h3 className="font-display font-bold text-xl text-gold mb-1">🏆 Declarar campeón del Mundial</h3>
       <p className="text-sm text-muted-foreground mb-5">Usá esto cuando termine el torneo. Al confirmar, se otorgan <b>10 puntos</b> a todos los que lo eligieron.<br /><span className="text-destructive font-semibold">⚠️ Esta acción no se puede deshacer.</span></p>
       <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar equipo..."
         className="w-full glass rounded-xl px-4 py-2.5 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-gold/40" />
-      {teamsQ.isLoading ? (
-        <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-      ) : (
+      {teamsQ.isLoading ? <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div> : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-72 overflow-y-auto pr-1">
           {teams.map((t: any) => (
-            <button key={t.id}
-              onClick={() => { if (confirm(`¿Declarar a ${t.name} como CAMPEÓN?\n\nOtorgará 10 pts. No se puede deshacer.`)) setChampMut.mutate(t.id); }}
-              disabled={setChampMut.isPending}
-              className="flex items-center gap-2.5 glass rounded-xl px-3 py-2.5 hover:bg-card hover:ring-1 hover:ring-gold/50 transition active:scale-95 text-left">
+            <button key={t.id} onClick={() => { if (confirm(`¿Declarar a ${t.name} como CAMPEÓN?\n\nOtorgará 10 pts. No se puede deshacer.`)) setChampMut.mutate(t.id); }}
+              disabled={setChampMut.isPending} className="flex items-center gap-2.5 glass rounded-xl px-3 py-2.5 hover:bg-card hover:ring-1 hover:ring-gold/50 transition active:scale-95 text-left">
               {t.flag_url && <img src={t.flag_url} alt="" className="w-7 h-7 rounded-md object-cover flex-shrink-0" />}
-              <div className="min-w-0">
-                <div className="text-sm font-medium truncate">{t.name}</div>
-                <div className="text-[10px] font-mono text-muted-foreground">Grupo {t.group}</div>
-              </div>
+              <div className="min-w-0"><div className="text-sm font-medium truncate">{t.name}</div><div className="text-[10px] font-mono text-muted-foreground">Grupo {t.group}</div></div>
             </button>
           ))}
         </div>
@@ -669,16 +623,14 @@ function AdminHistorial() {
   });
   const fmt = (iso: string) => {
     const d = new Date(iso);
-    return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
-      + " " + d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+    return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }) + " " + d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
   };
   return (
     <div>
       <p className="text-muted-foreground mb-2">Cada resultado cargado o modificado queda registrado permanentemente.</p>
       <p className="text-xs text-muted-foreground mb-6">También visible en <a href="/historial" className="text-primary underline">/historial</a>.</p>
-      {q.isLoading ? (
-        <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-      ) : !q.data || q.data.length === 0 ? (
+      {q.isLoading ? <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+      : !q.data || q.data.length === 0 ? (
         <div className="glass-strong rounded-2xl p-10 text-center">
           <History className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
           <p className="text-muted-foreground text-sm">Sin cambios todavía.</p>
@@ -686,13 +638,11 @@ function AdminHistorial() {
       ) : (
         <div className="glass-strong rounded-2xl overflow-hidden">
           <div className="px-5 py-3 border-b border-border/50 flex items-center gap-2 text-sm font-medium">
-            <History className="w-4 h-4 text-primary" />
-            {q.data.length} {q.data.length === 1 ? "cambio" : "cambios"} registrados
+            <History className="w-4 h-4 text-primary" />{q.data.length} {q.data.length === 1 ? "cambio" : "cambios"} registrados
           </div>
           <div className="divide-y divide-border/20">
             {(q.data as any[]).map((row: any) => {
-              const m = row.matches;
-              const isEdit = row.home_score_before !== null;
+              const m = row.matches; const isEdit = row.home_score_before !== null;
               return (
                 <div key={row.id} className="px-5 py-3.5 flex items-center justify-between gap-3 hover:bg-card/40 transition">
                   <div className="flex-1 min-w-0">
@@ -708,14 +658,11 @@ function AdminHistorial() {
                       {isEdit && <span className="font-mono text-sm text-muted-foreground line-through">{row.home_score_before}–{row.away_score_before}</span>}
                       {isEdit && <span className="text-muted-foreground text-xs">→</span>}
                       <span className={`font-mono font-bold ${isEdit ? "text-orange-400" : "text-secondary"}`}>{row.home_score_after}–{row.away_score_after}</span>
-                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isEdit ? "bg-orange-400/15 text-orange-400" : "bg-secondary/15 text-secondary"}`}>
-                        {isEdit ? "Modificado" : "Cargado"}
-                      </span>
+                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isEdit ? "bg-orange-400/15 text-orange-400" : "bg-secondary/15 text-secondary"}`}>{isEdit ? "Modificado" : "Cargado"}</span>
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0 text-[10px] text-muted-foreground">
-                    <div>{fmt(row.changed_at)}</div>
-                    <div className="text-primary">{row.profiles?.display_name ?? "Admin"}</div>
+                    <div>{fmt(row.changed_at)}</div><div className="text-primary">{row.profiles?.display_name ?? "Admin"}</div>
                   </div>
                 </div>
               );
@@ -736,36 +683,21 @@ function AdminParticipants() {
 
   const q = useQuery({
     queryKey: ["admin-participants"],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc("admin_get_participants");
-      if (error) throw error;
-      return data as Participant[];
-    },
+    queryFn: async () => { const { data, error } = await supabase.rpc("admin_get_participants"); if (error) throw error; return data as Participant[]; },
     refetchInterval: 30_000,
   });
 
   const setPaidMut = useMutation({
     mutationFn: async ({ userId, paid }: { userId: string; paid: boolean }) => {
-      const { error } = await supabase.rpc("admin_set_paid", { target_user_id: userId, is_paid: paid });
-      if (error) throw error;
+      const { error } = await supabase.rpc("admin_set_paid", { target_user_id: userId, is_paid: paid }); if (error) throw error;
     },
-    onSuccess: (_, vars) => {
-      toast.success(vars.paid ? "✅ Pago confirmado" : "❌ Pago removido");
-      qc.invalidateQueries({ queryKey: ["admin-participants"] });
-    },
+    onSuccess: (_, vars) => { toast.success(vars.paid ? "✅ Pago confirmado" : "❌ Pago removido"); qc.invalidateQueries({ queryKey: ["admin-participants"] }); },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const deleteMut = useMutation({
-    mutationFn: async (userId: string) => {
-      const { error } = await supabase.rpc("admin_delete_participant", { target_user_id: userId });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      toast.success("Participante eliminado");
-      setDeletingId(null);
-      qc.invalidateQueries({ queryKey: ["admin-participants"] });
-    },
+    mutationFn: async (userId: string) => { const { error } = await supabase.rpc("admin_delete_participant", { target_user_id: userId }); if (error) throw error; },
+    onSuccess: () => { toast.success("Participante eliminado"); setDeletingId(null); qc.invalidateQueries({ queryKey: ["admin-participants"] }); },
     onError: (e: Error) => { toast.error(e.message); setDeletingId(null); },
   });
 
@@ -798,18 +730,9 @@ function AdminParticipants() {
         </div>
       )}
       <div className="grid grid-cols-3 gap-3 mb-6">
-        <div className="glass rounded-2xl p-4 text-center">
-          <div className="font-display font-bold text-3xl">{participants.length}</div>
-          <div className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-mono">Registrados</div>
-        </div>
-        <div className="glass rounded-2xl p-4 text-center">
-          <div className="font-display font-bold text-3xl text-secondary">{totalPagados}</div>
-          <div className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-mono">Pagaron ✅</div>
-        </div>
-        <div className="glass rounded-2xl p-4 text-center">
-          <div className="font-display font-bold text-3xl text-gold">{totalPendientes}</div>
-          <div className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-mono">Pendientes ⏳</div>
-        </div>
+        <div className="glass rounded-2xl p-4 text-center"><div className="font-display font-bold text-3xl">{participants.length}</div><div className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-mono">Registrados</div></div>
+        <div className="glass rounded-2xl p-4 text-center"><div className="font-display font-bold text-3xl text-secondary">{totalPagados}</div><div className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-mono">Pagaron ✅</div></div>
+        <div className="glass rounded-2xl p-4 text-center"><div className="font-display font-bold text-3xl text-gold">{totalPendientes}</div><div className="text-xs text-muted-foreground mt-1 uppercase tracking-widest font-mono">Pendientes ⏳</div></div>
       </div>
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <div className="relative flex-1">
@@ -820,15 +743,12 @@ function AdminParticipants() {
         <div className="flex gap-2">
           {(["todos", "pagados", "pendientes"] as const).map((f) => (
             <button key={f} onClick={() => setFilter(f)}
-              className={`px-3 py-2 rounded-xl text-xs font-medium capitalize transition ${filter === f ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"}`}>
-              {f}
-            </button>
+              className={`px-3 py-2 rounded-xl text-xs font-medium capitalize transition ${filter === f ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"}`}>{f}</button>
           ))}
         </div>
       </div>
-      {q.isLoading ? (
-        <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-      ) : filtered.length === 0 ? (
+      {q.isLoading ? <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+      : filtered.length === 0 ? (
         <div className="glass-strong rounded-2xl p-12 text-center text-muted-foreground">
           {participants.length === 0 ? "Todavía no hay participantes." : "No hay resultados para ese filtro."}
         </div>
@@ -842,11 +762,7 @@ function AdminParticipants() {
               <div className="flex-1 min-w-0">
                 <div className="font-semibold text-sm truncate">{p.display_name}</div>
                 <div className="text-xs text-muted-foreground truncate">{p.email}</div>
-                {p.paid && p.paid_at && (
-                  <div className="text-[10px] text-secondary mt-0.5 flex items-center gap-1">
-                    <Clock className="w-3 h-3" />{new Date(p.paid_at).toLocaleDateString("es-AR")}
-                  </div>
-                )}
+                {p.paid && p.paid_at && <div className="text-[10px] text-secondary mt-0.5 flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(p.paid_at).toLocaleDateString("es-AR")}</div>}
               </div>
               <div className="text-right hidden sm:block flex-shrink-0">
                 <div className="font-mono font-bold text-sm">{p.total_points} pts</div>
