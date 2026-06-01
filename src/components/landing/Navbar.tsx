@@ -37,20 +37,21 @@ export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
             </Link>
 
             {/* Desktop nav */}
-            <div className="hidden md:flex items-center gap-6 text-sm font-medium">
+            <div className="hidden md:flex items-center gap-5 text-sm font-medium">
               {user ? (
                 <>
-                  <Link to="/fixture" className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>Fixture</Link>
-                  <Link to="/ranking" className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>Ranking</Link>
+                  <Link to="/fixture"   className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>Fixture</Link>
+                  <Link to="/ranking"   className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>Ranking</Link>
                   <Link to="/campeones" className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>🏆 Campeones</Link>
-                  <Link to="/stats" className="hover:text-primary transition inline-flex items-center gap-1" activeProps={{ className: "text-primary" }}>
+                  <Link to="/feed"      className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>⚡ Feed</Link>
+                  <Link to="/stats"     className="hover:text-primary transition inline-flex items-center gap-1" activeProps={{ className: "text-primary" }}>
                     <BarChart3 className="w-3.5 h-3.5" /> Stats
                   </Link>
-                  <Link to="/chat" className="hover:text-primary transition inline-flex items-center gap-1" activeProps={{ className: "text-primary" }}>
+                  <Link to="/chat"      className="hover:text-primary transition inline-flex items-center gap-1" activeProps={{ className: "text-primary" }}>
                     <MessageCircle className="w-3.5 h-3.5" /> Chat
                   </Link>
                   <Link to="/reglamento" className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>Reglamento</Link>
-                  <Link to="/perfil" className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>Mi perfil</Link>
+                  <Link to="/perfil"    className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>Mi perfil</Link>
                   {isAdmin && (
                     <Link to="/admin" className="inline-flex items-center gap-1 hover:text-primary transition" activeProps={{ className: "text-primary" }}>
                       <ShieldCheck className="w-3.5 h-3.5" /> Admin
@@ -59,12 +60,14 @@ export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
                 </>
               ) : (
                 <>
-                  <a href="/#premios" className="hover:text-primary transition">Premios</a>
-                  <Link to="/reglamento" className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>Reglamento</Link>
-                  <a href="/#como-funciona" className="hover:text-primary transition">Cómo funciona</a>
-                  <Link to="/ranking" className="hover:text-primary transition">Ranking</Link>
-                  <Link to="/stats" className="hover:text-primary transition">Stats</Link>
-                  <Link to="/chat" className="hover:text-primary transition inline-flex items-center gap-1">
+                  <a href="/#premios"         className="hover:text-primary transition">Premios</a>
+                  <Link to="/reglamento"      className="hover:text-primary transition" activeProps={{ className: "text-primary" }}>Reglamento</Link>
+                  <a href="/#como-funciona"   className="hover:text-primary transition">Cómo funciona</a>
+                  <Link to="/ranking"         className="hover:text-primary transition">Ranking</Link>
+                  <Link to="/campeones"       className="hover:text-primary transition">🏆 Campeones</Link>
+                  <Link to="/feed"            className="hover:text-primary transition">⚡ Feed</Link>
+                  <Link to="/stats"           className="hover:text-primary transition">Stats</Link>
+                  <Link to="/chat"            className="hover:text-primary transition inline-flex items-center gap-1">
                     <MessageCircle className="w-3.5 h-3.5" /> Chat
                   </Link>
                 </>
@@ -101,26 +104,28 @@ export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
             <div className="md:hidden glass-strong rounded-2xl mt-2 px-4 py-4 flex flex-col gap-1 animate-in fade-in slide-in-from-top-2 duration-200">
               {user ? (
                 <>
-                  <MobileLink to="/fixture"   label="⚽ Fixture"     onClick={close} />
-                  <MobileLink to="/ranking"   label="🏅 Ranking"     onClick={close} />
-                  <MobileLink to="/campeones" label="🏆 Campeones"   onClick={close} />
-                  <MobileLink to="/stats"     label="📊 Stats"       onClick={close} />
-                  <MobileLink to="/chat"      label="💬 Chat"        onClick={close} />
-                  <MobileLink to="/reglamento" label="📋 Reglamento" onClick={close} />
-                  <MobileLink to="/perfil"    label="👤 Mi perfil"   onClick={close} />
-                  {isAdmin && <MobileLink to="/admin" label="🛡️ Admin" onClick={close} />}
+                  <MobileLink to="/fixture"    label="⚽ Fixture"        onClick={close} />
+                  <MobileLink to="/ranking"    label="🏅 Ranking"        onClick={close} />
+                  <MobileLink to="/campeones"  label="🏆 Campeones"      onClick={close} />
+                  <MobileLink to="/feed"       label="⚡ Feed"           onClick={close} />
+                  <MobileLink to="/stats"      label="📊 Stats"          onClick={close} />
+                  <MobileLink to="/chat"       label="💬 Chat"           onClick={close} />
+                  <MobileLink to="/reglamento" label="📋 Reglamento"     onClick={close} />
+                  <MobileLink to="/perfil"     label="👤 Mi perfil"      onClick={close} />
+                  {isAdmin && <MobileLink to="/admin" label="🛡️ Admin"   onClick={close} />}
                   <div className="h-px bg-border/60 my-1" />
                   <MobileSignOut />
                 </>
               ) : (
                 <>
                   <a href="/#premios" onClick={close} className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-card transition text-sm font-medium">🎁 Premios</a>
-                  <MobileLink to="/reglamento" label="📋 Reglamento" onClick={close} />
+                  <MobileLink to="/reglamento" label="📋 Reglamento"  onClick={close} />
                   <a href="/#como-funciona" onClick={close} className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-card transition text-sm font-medium">ℹ️ Cómo funciona</a>
-                  <MobileLink to="/ranking"    label="🏅 Ranking"   onClick={close} />
-                  <MobileLink to="/campeones"  label="🏆 Campeones" onClick={close} />
-                  <MobileLink to="/stats"      label="📊 Stats"     onClick={close} />
-                  <MobileLink to="/chat"       label="💬 Chat"      onClick={close} />
+                  <MobileLink to="/ranking"   label="🏅 Ranking"      onClick={close} />
+                  <MobileLink to="/campeones" label="🏆 Campeones"    onClick={close} />
+                  <MobileLink to="/feed"      label="⚡ Feed"         onClick={close} />
+                  <MobileLink to="/stats"     label="📊 Stats"        onClick={close} />
+                  <MobileLink to="/chat"      label="💬 Chat"         onClick={close} />
                   <div className="h-px bg-border/60 my-1" />
                   <Link to="/auth" onClick={close}
                     className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-secondary px-4 py-3 text-sm font-semibold text-background shadow-glow transition mt-1">
