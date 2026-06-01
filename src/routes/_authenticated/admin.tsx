@@ -131,101 +131,123 @@ function AdminPage() {
 function SnapshotButton() {
   const qc = useQueryClient();
   const [label, setLabel] = useState("");
-  const mut = useMutation({
+
+  const snapshotsQ = useQuery({
+    queryKey: ["admin-snapshots"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ranking_history")
+        .select("snapshot_at, label")
+        .order("snapshot_at", { ascending: false });
+      if (error) throw error;
+      // Deduplicar por snapshot_at
+      const seen = new Set<string>();
+      return (data ?? []).filter((r: any) => {
+        if (seen.has(r.snapshot_at)) return false;
+        seen.add(r.snapshot_at);
+        return true;
+      });
+    },
+    refetchInterval: 30_000,
+  });
+
+  const saveMut = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.rpc("admin_snapshot_ranking", { p_label: label.trim() || null });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("📸 Snapshot del ranking guardado");
+      toast.success("📸 Snapshot guardado");
       setLabel("");
       qc.invalidateQueries({ queryKey: ["ranking-history-latest"] });
+      qc.invalidateQueries({ queryKey: ["admin-snapshots"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
-  return (
-    <div className="glass rounded-2xl p-4 mb-6 flex flex-col sm:flex-row items-start sm:items-center gap-3 border border-primary/20">
-      <Camera className="w-5 h-5 text-primary flex-shrink-0" />
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-mono uppercase tracking-widest text-primary mb-0.5">Snapshot del ranking</p>
-        <p className="text-xs text-muted-foreground">Guardá el estado actual para mostrar las flechas ↑↓ en el ranking.</p>
-      </div>
-      <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Etiqueta (ej: Fecha 3)"
-        className="glass rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 w-full sm:w-44" />
-      <Button onClick={() => mut.mutate()} disabled={mut.isPending} size="sm" className="bg-primary text-background font-semibold whitespace-nowrap">
-        {mut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar snapshot"}
-      </Button>
-    </div>
-  );
-}
 
-function AdminMatches() {
-  const qc = useQueryClient();
-  const [filter, setFilter] = useState<"todos" | "pendientes" | "finalizados">("pendientes");
-
-  const matchesQ = useQuery({
-    queryKey: ["admin-matches"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("matches")
-        .select(`id, kickoff, group, stage, venue, status, home_score, away_score,
-           home:teams!matches_home_team_id_fkey(name,code,flag_url),
-           away:teams!matches_away_team_id_fkey(name,code,flag_url)`)
-        .order("kickoff", { ascending: true });
-      if (error) throw error;
-      return data as unknown as AdminMatch[];
-    },
-  });
-
-  const saveMut = useMutation({
-    mutationFn: async (vars: { id: string; home: number; away: number }) => {
-      const { error } = await supabase.rpc("admin_save_result", {
-        p_match_id: vars.id,
-        p_home_score: vars.home,
-        p_away_score: vars.away,
-      });
+  const deleteMut = useMutation({
+    mutationFn: async (snapshotAt: string) => {
+      const { error } = await supabase.rpc("admin_delete_snapshot", { p_snapshot_at: snapshotAt });
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Resultado guardado · puntos recalculados");
-      qc.invalidateQueries({ queryKey: ["admin-matches"] });
-      qc.invalidateQueries({ queryKey: ["ranking"] });
-      qc.invalidateQueries({ queryKey: ["matches"] });
-      qc.invalidateQueries({ queryKey: ["audit-log"] });
+      toast.success("Snapshot eliminado");
+      qc.invalidateQueries({ queryKey: ["ranking-history-latest"] });
+      qc.invalidateQueries({ queryKey: ["admin-snapshots"] });
+      qc.invalidateQueries({ queryKey: ["ranking-history-all"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const filtered = useMemo(() => {
-    const list = matchesQ.data ?? [];
-    return list.filter((m) => {
-      if (filter === "pendientes") return m.status !== "finished";
-      if (filter === "finalizados") return m.status === "finished";
-      return true;
-    });
-  }, [matchesQ.data, filter]);
+  const clearMut = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.rpc("admin_clear_snapshots");
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Todos los snapshots eliminados");
+      qc.invalidateQueries();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const snapshots = snapshotsQ.data ?? [];
+
+  const fmt = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
+      + " " + d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+  };
 
   return (
-    <div>
-      <SnapshotButton />
-      <p className="text-muted-foreground mb-4">
-        Al guardar un partido, se recalculan los puntos y se registra en el historial automáticamente.
-      </p>
-      <div className="flex gap-2 mb-6">
-        {(["pendientes", "finalizados", "todos"] as const).map((f) => (
-          <button key={f} onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium uppercase tracking-wider transition ${
-              filter === f ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
-            }`}>{f}</button>
-        ))}
+    <div className="glass rounded-2xl p-4 mb-6 border border-primary/20 space-y-4">
+      {/* Guardar nuevo snapshot */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+        <Camera className="w-5 h-5 text-primary flex-shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-mono uppercase tracking-widest text-primary mb-0.5">Snapshot del ranking</p>
+          <p className="text-xs text-muted-foreground">Guardá el estado actual para mostrar las flechas ↑↓.</p>
+        </div>
+        <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Etiqueta (ej: Fecha 3)"
+          className="glass rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 w-full sm:w-44" />
+        <Button onClick={() => saveMut.mutate()} disabled={saveMut.isPending} size="sm"
+          className="bg-primary text-background font-semibold whitespace-nowrap">
+          {saveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar snapshot"}
+        </Button>
       </div>
-      {matchesQ.isLoading ? (
-        <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map((m) => (
-            <AdminMatchRow key={m.id} match={m} onSave={(h, a) => saveMut.mutate({ id: m.id, home: h, away: a })} saving={saveMut.isPending} />
-          ))}
+
+      {/* Lista de snapshots existentes */}
+      {snapshots.length > 0 && (
+        <div className="border-t border-border/40 pt-3">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
+              Snapshots guardados ({snapshots.length})
+            </p>
+            <button
+              onClick={() => { if (confirm("¿Borrar TODOS los snapshots? Las flechas y el gráfico F1 desaparecerán.")) clearMut.mutate(); }}
+              disabled={clearMut.isPending}
+              className="text-xs text-destructive hover:text-destructive/80 font-mono transition"
+            >
+              {clearMut.isPending ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "Borrar todos"}
+            </button>
+          </div>
+          <div className="space-y-1">
+            {snapshots.map((s: any) => (
+              <div key={s.snapshot_at} className="flex items-center justify-between glass rounded-lg px-3 py-2">
+                <div>
+                  <span className="text-sm font-medium">{s.label ?? "Sin etiqueta"}</span>
+                  <span className="text-xs text-muted-foreground ml-2 font-mono">{fmt(s.snapshot_at)}</span>
+                </div>
+                <button
+                  onClick={() => { if (confirm(`¿Eliminar snapshot "${s.label}"?`)) deleteMut.mutate(s.snapshot_at); }}
+                  disabled={deleteMut.isPending}
+                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-destructive/20 hover:text-destructive transition"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>
