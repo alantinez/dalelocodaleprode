@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Loader2, Save, ShieldCheck, ShieldAlert, Crown,
   Users, CheckCircle2, XCircle, Clock, Trophy, Search,
-  Trash2, Plus, Swords, CalendarDays, Camera, History,
+  Trash2, Plus, Swords, CalendarDays, Camera, History, RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -100,7 +100,6 @@ function AdminPage() {
         <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight mb-6">
           Dale Dale <span className="text-gradient-hero">Admin</span>
         </h1>
-
         <div className="flex gap-2 mb-8 flex-wrap">
           {([
             { key: "participantes", label: "Participantes", icon: <Users className="w-4 h-4" /> },
@@ -117,7 +116,6 @@ function AdminPage() {
             </button>
           ))}
         </div>
-
         {tab === "participantes" && <AdminParticipants />}
         {tab === "resultados"    && <AdminMatches />}
         {tab === "knockout"      && <AdminKnockout />}
@@ -128,6 +126,7 @@ function AdminPage() {
   );
 }
 
+/* ─── SNAPSHOT ─── */
 function SnapshotButton() {
   const qc = useQueryClient();
   const [label, setLabel] = useState("");
@@ -140,7 +139,6 @@ function SnapshotButton() {
         .select("snapshot_at, label")
         .order("snapshot_at", { ascending: false });
       if (error) throw error;
-      // Deduplicar por snapshot_at
       const seen = new Set<string>();
       return (data ?? []).filter((r: any) => {
         if (seen.has(r.snapshot_at)) return false;
@@ -192,7 +190,6 @@ function SnapshotButton() {
   });
 
   const snapshots = snapshotsQ.data ?? [];
-
   const fmt = (iso: string) => {
     const d = new Date(iso);
     return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
@@ -201,7 +198,6 @@ function SnapshotButton() {
 
   return (
     <div className="glass rounded-2xl p-4 mb-6 border border-primary/20 space-y-4">
-      {/* Guardar nuevo snapshot */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
         <Camera className="w-5 h-5 text-primary flex-shrink-0" />
         <div className="flex-1 min-w-0">
@@ -215,19 +211,12 @@ function SnapshotButton() {
           {saveMut.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Guardar snapshot"}
         </Button>
       </div>
-
-      {/* Lista de snapshots existentes */}
       {snapshots.length > 0 && (
         <div className="border-t border-border/40 pt-3">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">
-              Snapshots guardados ({snapshots.length})
-            </p>
-            <button
-              onClick={() => { if (confirm("¿Borrar TODOS los snapshots? Las flechas y el gráfico F1 desaparecerán.")) clearMut.mutate(); }}
-              disabled={clearMut.isPending}
-              className="text-xs text-destructive hover:text-destructive/80 font-mono transition"
-            >
+            <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground">Snapshots guardados ({snapshots.length})</p>
+            <button onClick={() => { if (confirm("¿Borrar TODOS los snapshots?")) clearMut.mutate(); }}
+              disabled={clearMut.isPending} className="text-xs text-destructive hover:text-destructive/80 font-mono transition">
               {clearMut.isPending ? <Loader2 className="w-3 h-3 animate-spin inline" /> : "Borrar todos"}
             </button>
           </div>
@@ -238,11 +227,9 @@ function SnapshotButton() {
                   <span className="text-sm font-medium">{s.label ?? "Sin etiqueta"}</span>
                   <span className="text-xs text-muted-foreground ml-2 font-mono">{fmt(s.snapshot_at)}</span>
                 </div>
-                <button
-                  onClick={() => { if (confirm(`¿Eliminar snapshot "${s.label}"?`)) deleteMut.mutate(s.snapshot_at); }}
+                <button onClick={() => { if (confirm(`¿Eliminar snapshot "${s.label}"?`)) deleteMut.mutate(s.snapshot_at); }}
                   disabled={deleteMut.isPending}
-                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-destructive/20 hover:text-destructive transition"
-                >
+                  className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-destructive/20 hover:text-destructive transition">
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
@@ -254,10 +241,110 @@ function SnapshotButton() {
   );
 }
 
-function AdminMatchRow({ match, onSave, saving }: { match: AdminMatch; onSave: (home: number, away: number) => void; saving: boolean }) {
+/* ─── RESULTADOS ─── */
+function AdminMatches() {
+  const qc = useQueryClient();
+  const [filter, setFilter] = useState<"todos" | "pendientes" | "finalizados">("pendientes");
+
+  const matchesQ = useQuery({
+    queryKey: ["admin-matches"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("matches")
+        .select(`id, kickoff, group, stage, venue, status, home_score, away_score,
+           home:teams!matches_home_team_id_fkey(name,code,flag_url),
+           away:teams!matches_away_team_id_fkey(name,code,flag_url)`)
+        .order("kickoff", { ascending: true });
+      if (error) throw error;
+      return data as unknown as AdminMatch[];
+    },
+  });
+
+  const saveMut = useMutation({
+    mutationFn: async (vars: { id: string; home: number; away: number }) => {
+      const { error } = await supabase.rpc("admin_save_result", {
+        p_match_id: vars.id, p_home_score: vars.home, p_away_score: vars.away,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Resultado guardado · puntos recalculados");
+      qc.invalidateQueries({ queryKey: ["admin-matches"] });
+      qc.invalidateQueries({ queryKey: ["ranking"] });
+      qc.invalidateQueries({ queryKey: ["matches"] });
+      qc.invalidateQueries({ queryKey: ["audit-log"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const filtered = useMemo(() => {
+    const list = matchesQ.data ?? [];
+    return list.filter((m) => {
+      if (filter === "pendientes") return m.status !== "finished";
+      if (filter === "finalizados") return m.status === "finished";
+      return true;
+    });
+  }, [matchesQ.data, filter]);
+
+  return (
+    <div>
+      <SnapshotButton />
+      <p className="text-muted-foreground mb-4">
+        Al guardar un partido, se recalculan los puntos y se registra en el historial. Si cometés un error, usá "Revertir resultado".
+      </p>
+      <div className="flex gap-2 mb-6">
+        {(["pendientes", "finalizados", "todos"] as const).map((f) => (
+          <button key={f} onClick={() => setFilter(f)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium uppercase tracking-wider transition ${
+              filter === f ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
+            }`}>{f}</button>
+        ))}
+      </div>
+      {matchesQ.isLoading ? (
+        <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+      ) : (
+        <div className="space-y-3">
+          {filtered.map((m) => (
+            <AdminMatchRow key={m.id} match={m}
+              onSave={(h, a) => saveMut.mutate({ id: m.id, home: h, away: a })}
+              saving={saveMut.isPending}
+              onRefresh={() => {
+                qc.invalidateQueries({ queryKey: ["admin-matches"] });
+                qc.invalidateQueries({ queryKey: ["ranking"] });
+                qc.invalidateQueries({ queryKey: ["matches"] });
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminMatchRow({ match, onSave, saving, onRefresh }: {
+  match: AdminMatch;
+  onSave: (home: number, away: number) => void;
+  saving: boolean;
+  onRefresh: () => void;
+}) {
   const [home, setHome] = useState<string>(match.home_score?.toString() ?? "");
   const [away, setAway] = useState<string>(match.away_score?.toString() ?? "");
+  const [reverting, setReverting] = useState(false);
   const isFinished = match.status === "finished";
+
+  const handleRevert = async () => {
+    if (!confirm(`¿Revertir el resultado de ${match.home?.name} vs ${match.away?.name}?\n\nSe restan los puntos calculados y el partido vuelve a "pendiente".`)) return;
+    setReverting(true);
+    const { error } = await supabase.rpc("admin_reset_result", { p_match_id: match.id });
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("↩️ Resultado revertido");
+      onRefresh();
+    }
+    setReverting(false);
+  };
+
   return (
     <div className={`glass-strong rounded-2xl p-4 sm:p-5 ${isFinished ? "ring-1 ring-primary/40" : ""}`}>
       <div className="flex items-center justify-between mb-3 text-[10px] sm:text-xs font-mono uppercase tracking-widest text-muted-foreground">
@@ -274,16 +361,27 @@ function AdminMatchRow({ match, onSave, saving }: { match: AdminMatch; onSave: (
           {match.home?.flag_url && <img src={match.home.flag_url} alt="" className="w-6 h-6 rounded shrink-0" />}
         </div>
         <div className="flex items-center gap-1.5">
-          <Input type="number" inputMode="numeric" min={0} max={20} value={home} onChange={(e) => setHome(e.target.value)} className="w-14 h-12 text-center font-display text-2xl font-bold" />
+          <Input type="number" inputMode="numeric" min={0} max={20} value={home}
+            onChange={(e) => setHome(e.target.value)} className="w-14 h-12 text-center font-display text-2xl font-bold" />
           <span className="text-muted-foreground">·</span>
-          <Input type="number" inputMode="numeric" min={0} max={20} value={away} onChange={(e) => setAway(e.target.value)} className="w-14 h-12 text-center font-display text-2xl font-bold" />
+          <Input type="number" inputMode="numeric" min={0} max={20} value={away}
+            onChange={(e) => setAway(e.target.value)} className="w-14 h-12 text-center font-display text-2xl font-bold" />
         </div>
         <div className="flex items-center gap-2 min-w-0">
           {match.away?.flag_url && <img src={match.away.flag_url} alt="" className="w-6 h-6 rounded shrink-0" />}
           <span className="font-semibold truncate text-sm sm:text-base">{match.away?.name}</span>
         </div>
       </div>
-      <div className="mt-3 flex justify-end">
+      <div className="mt-3 flex items-center justify-between gap-3">
+        {/* Botón revertir — solo si está finalizado */}
+        {isFinished ? (
+          <button onClick={handleRevert} disabled={reverting}
+            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-destructive transition glass rounded-lg px-3 py-2 disabled:opacity-50">
+            {reverting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+            Revertir
+          </button>
+        ) : <div />}
+
         <Button size="sm" onClick={() => {
           const h = parseInt(home, 10), a = parseInt(away, 10);
           if (isNaN(h) || isNaN(a) || h < 0 || a < 0) { toast.error("Ingresá goles válidos"); return; }
@@ -296,6 +394,7 @@ function AdminMatchRow({ match, onSave, saving }: { match: AdminMatch; onSave: (
   );
 }
 
+/* ─── KNOCKOUT ─── */
 function AdminKnockout() {
   const qc = useQueryClient();
   const [stage, setStage] = useState("r32");
@@ -501,6 +600,7 @@ function AdminKnockout() {
   );
 }
 
+/* ─── CAMPEÓN ─── */
 function AdminChampion() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
@@ -551,6 +651,7 @@ function AdminChampion() {
   );
 }
 
+/* ─── HISTORIAL ─── */
 function AdminHistorial() {
   const q = useQuery({
     queryKey: ["audit-log"],
@@ -574,16 +675,13 @@ function AdminHistorial() {
   return (
     <div>
       <p className="text-muted-foreground mb-2">Cada resultado cargado o modificado queda registrado permanentemente.</p>
-      <p className="text-xs text-muted-foreground mb-6">
-        También visible para todos los participantes en{" "}
-        <a href="/historial" className="text-primary underline">/historial</a>.
-      </p>
+      <p className="text-xs text-muted-foreground mb-6">También visible en <a href="/historial" className="text-primary underline">/historial</a>.</p>
       {q.isLoading ? (
         <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
       ) : !q.data || q.data.length === 0 ? (
         <div className="glass-strong rounded-2xl p-10 text-center">
           <History className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-40" />
-          <p className="text-muted-foreground text-sm">Sin cambios todavía. Aparecerán acá cada vez que cargues un resultado.</p>
+          <p className="text-muted-foreground text-sm">Sin cambios todavía.</p>
         </div>
       ) : (
         <div className="glass-strong rounded-2xl overflow-hidden">
@@ -629,6 +727,7 @@ function AdminHistorial() {
   );
 }
 
+/* ─── PARTICIPANTES ─── */
 function AdminParticipants() {
   const qc = useQueryClient();
   const [search, setSearch] = useState("");
