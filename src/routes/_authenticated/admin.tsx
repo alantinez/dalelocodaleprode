@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Loader2, Save, ShieldCheck, ShieldAlert, Crown,
   Users, CheckCircle2, XCircle, Clock, Trophy, Search,
-  Trash2, Plus, Swords, CalendarDays, Camera, History, RotateCcw,
+  Trash2, Plus, Swords, CalendarDays, Camera, History, RotateCcw, Zap,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,7 +44,7 @@ const STAGE_LABEL: Record<string, string> = Object.fromEntries(KNOCKOUT_STAGES.m
 /* ─── PAGE ─── */
 function AdminPage() {
   const { isAdmin, user, loading } = useAuth();
-  const [tab, setTab] = useState<"participantes" | "resultados" | "knockout" | "campeon" | "historial">("participantes");
+  const [tab, setTab] = useState<"rapido" | "participantes" | "resultados" | "knockout" | "campeon" | "historial">("rapido");
 
   const claimMut = useMutation({
     mutationFn: async () => {
@@ -89,26 +89,196 @@ function AdminPage() {
         </h1>
         <div className="flex gap-2 mb-8 flex-wrap">
           {([
-            { key: "participantes", label: "Participantes", icon: <Users className="w-4 h-4" /> },
-            { key: "resultados",    label: "Resultados",    icon: <Save className="w-4 h-4" /> },
-            { key: "knockout",      label: "⚽ Knockout",   icon: null },
-            { key: "campeon",       label: "🏆 Campeón",    icon: null },
-            { key: "historial",     label: "📋 Historial",  icon: null },
+            { key: "rapido",        label: "⚡ Hoy",          icon: null },
+            { key: "participantes", label: "Participantes",   icon: <Users className="w-4 h-4" /> },
+            { key: "resultados",    label: "Resultados",      icon: <Save className="w-4 h-4" /> },
+            { key: "knockout",      label: "⚽ Knockout",     icon: null },
+            { key: "campeon",       label: "🏆 Campeón",      icon: null },
+            { key: "historial",     label: "📋 Historial",    icon: null },
           ] as const).map((t) => (
             <button key={t.key} onClick={() => setTab(t.key)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition ${
-                tab === t.key ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
+                tab === t.key
+                  ? t.key === "rapido" ? "bg-secondary text-background" : "bg-primary text-background"
+                  : "glass text-muted-foreground hover:text-foreground"
               }`}>
               {t.icon}{t.label}
             </button>
           ))}
         </div>
+        {tab === "rapido"        && <AdminQuick />}
         {tab === "participantes" && <AdminParticipants />}
         {tab === "resultados"    && <AdminMatches />}
         {tab === "knockout"      && <AdminKnockout />}
         {tab === "campeon"       && <AdminChampion />}
         {tab === "historial"     && <AdminHistorial />}
       </main>
+    </div>
+  );
+}
+
+/* ─── ⚡ MODO RÁPIDO ─── */
+function QuickScoreInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  return (
+    <div className="flex items-center gap-2">
+      <button type="button" onClick={() => onChange(Math.max(0, value - 1))}
+        className="w-14 h-14 rounded-2xl glass hover:bg-card active:scale-95 flex items-center justify-center text-2xl font-bold transition touch-manipulation select-none">
+        −
+      </button>
+      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-primary/20 to-secondary/20 border border-primary/30 flex items-center justify-center font-display font-black text-3xl tabular-nums">
+        {value}
+      </div>
+      <button type="button" onClick={() => onChange(Math.min(20, value + 1))}
+        className="w-14 h-14 rounded-2xl glass hover:bg-card active:scale-95 flex items-center justify-center text-2xl font-bold transition touch-manipulation select-none">
+        +
+      </button>
+    </div>
+  );
+}
+
+function QuickMatchCard({ match, onSaved }: { match: AdminMatch; onSaved: () => void }) {
+  const [home, setHome] = useState(match.home_score ?? 0);
+  const [away, setAway] = useState(match.away_score ?? 0);
+  const [saving, setSaving] = useState(false);
+  const [reverting, setReverting] = useState(false);
+  const isFinished = match.status === "finished";
+  const kickoff = new Date(match.kickoff);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase.rpc("admin_save_result", {
+      p_match_id: match.id, p_home_score: home, p_away_score: away,
+    });
+    if (error) toast.error(error.message);
+    else { toast.success("✅ Resultado guardado"); onSaved(); }
+    setSaving(false);
+  };
+
+  const handleRevert = async () => {
+    if (!confirm(`¿Revertir ${match.home?.name} vs ${match.away?.name}?`)) return;
+    setReverting(true);
+    const { error } = await supabase.rpc("admin_reset_result", { p_match_id: match.id });
+    if (error) toast.error(error.message);
+    else { toast.success("↩️ Revertido"); onSaved(); }
+    setReverting(false);
+  };
+
+  return (
+    <div className={`glass-strong rounded-3xl p-5 relative overflow-hidden ${isFinished ? "ring-1 ring-primary/40" : ""}`}>
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4 text-xs font-mono text-muted-foreground">
+        <div className="flex items-center gap-2">
+          {match.group && <span className="px-2 py-0.5 rounded bg-primary/15 text-primary font-bold">Grupo {match.group}</span>}
+          {match.stage !== "group" && <span className="px-2 py-0.5 rounded bg-secondary/15 text-secondary font-bold">{STAGE_LABEL[match.stage] ?? match.stage}</span>}
+        </div>
+        <div className="flex items-center gap-2">
+          {isFinished && <span className="text-secondary font-bold">FINAL</span>}
+          <span>{kickoff.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}</span>
+        </div>
+      </div>
+
+      {/* Teams con bandera grande */}
+      <div className="flex items-center justify-between gap-3 mb-5">
+        <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
+          {match.home?.flag_url
+            ? <img src={match.home.flag_url} alt="" className="w-14 h-14 rounded-full object-cover ring-2 ring-border/60" />
+            : <div className="w-14 h-14 rounded-full bg-card flex items-center justify-center font-mono text-sm">{match.home?.code}</div>}
+          <span className="font-semibold text-sm text-center leading-tight truncate w-full text-center px-1">{match.home?.name}</span>
+        </div>
+        <span className="text-muted-foreground/40 font-mono flex-shrink-0">vs</span>
+        <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
+          {match.away?.flag_url
+            ? <img src={match.away.flag_url} alt="" className="w-14 h-14 rounded-full object-cover ring-2 ring-border/60" />
+            : <div className="w-14 h-14 rounded-full bg-card flex items-center justify-center font-mono text-sm">{match.away?.code}</div>}
+          <span className="font-semibold text-sm text-center leading-tight truncate w-full text-center px-1">{match.away?.name}</span>
+        </div>
+      </div>
+
+      {/* Score inputs grandes */}
+      <div className="flex items-center justify-center gap-4 mb-5">
+        <QuickScoreInput value={home} onChange={setHome} />
+        <span className="font-display font-black text-3xl text-muted-foreground/30 flex-shrink-0">—</span>
+        <QuickScoreInput value={away} onChange={setAway} />
+      </div>
+
+      {/* Botones */}
+      <div className="flex gap-3">
+        {isFinished && (
+          <button onClick={handleRevert} disabled={reverting}
+            className="inline-flex items-center gap-1.5 glass rounded-2xl px-4 py-3 text-sm font-medium text-muted-foreground hover:text-destructive transition disabled:opacity-50 touch-manipulation flex-shrink-0">
+            {reverting ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+            Revertir
+          </button>
+        )}
+        <button onClick={handleSave} disabled={saving}
+          className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-secondary py-4 font-bold text-background text-base shadow-glow active:scale-95 transition disabled:opacity-50 touch-manipulation">
+          {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+          {isFinished ? "Actualizar" : "Guardar final"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AdminQuick() {
+  const qc = useQueryClient();
+
+  const matchesQ = useQuery({
+    queryKey: ["admin-quick-matches"],
+    queryFn: async () => {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const until = new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString();
+      const { data, error } = await supabase
+        .from("matches")
+        .select(`id, kickoff, group, stage, status, home_score, away_score,
+           home:teams!matches_home_team_id_fkey(name,code,flag_url),
+           away:teams!matches_away_team_id_fkey(name,code,flag_url)`)
+        .gte("kickoff", since)
+        .lte("kickoff", until)
+        .order("kickoff", { ascending: true });
+      if (error) throw error;
+      return data as unknown as AdminMatch[];
+    },
+    refetchInterval: 60_000,
+  });
+
+  const onSaved = () => {
+    qc.invalidateQueries({ queryKey: ["admin-quick-matches"] });
+    qc.invalidateQueries({ queryKey: ["admin-matches"] });
+    qc.invalidateQueries({ queryKey: ["ranking"] });
+    qc.invalidateQueries({ queryKey: ["matches"] });
+    qc.invalidateQueries({ queryKey: ["audit-log"] });
+  };
+
+  if (matchesQ.isLoading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
+
+  const matches = matchesQ.data ?? [];
+
+  if (matches.length === 0) {
+    return (
+      <div className="glass-strong rounded-2xl p-14 text-center">
+        <div className="text-4xl mb-4">😴</div>
+        <h3 className="font-display font-bold text-xl mb-2">Sin partidos ahora</h3>
+        <p className="text-sm text-muted-foreground">Acá aparecen los partidos de las últimas 24 hs y las próximas 6 horas.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center gap-2 mb-5">
+        <Zap className="w-4 h-4 text-secondary" />
+        <p className="text-sm text-muted-foreground">
+          {matches.length} {matches.length === 1 ? "partido" : "partidos"} · botones grandes para móvil
+        </p>
+      </div>
+      <div className="space-y-4">
+        {matches.map((m) => (
+          <QuickMatchCard key={m.id} match={m} onSaved={onSaved} />
+        ))}
+      </div>
     </div>
   );
 }
