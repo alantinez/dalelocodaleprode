@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import {
   Camera, LogOut, Trophy, Target, Flame, Loader2, Save,
   TrendingUp, BarChart3, Medal, CheckCircle2, Clock, Percent,
+  History, Star, X, Check, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,6 +19,24 @@ export const Route = createFileRoute("/_authenticated/perfil")({
   component: PerfilPage,
   head: () => ({ meta: [{ title: "Mi perfil · Dale Dale" }] }),
 });
+
+type PredHistory = {
+  match_id: string;
+  home_score: number;
+  away_score: number;
+  points: number | null;
+  is_exact: boolean | null;
+  matches: {
+    kickoff: string;
+    group: string | null;
+    stage: string;
+    status: string;
+    home_score: number | null;
+    away_score: number | null;
+    home: { name: string; code: string; flag_url: string | null } | null;
+    away: { name: string; code: string; flag_url: string | null } | null;
+  } | null;
+};
 
 function StatCard({ icon: Icon, label, value, gradient, border, iconColor, valueColor, glow, delay = 0 }: {
   icon: any; label: string; value: string | number;
@@ -38,6 +57,152 @@ function StatCard({ icon: Icon, label, value, gradient, border, iconColor, value
   );
 }
 
+type HistFilter = "todos" | "exactos" | "correctos" | "fallados" | "pendientes";
+
+function PredHistorySection({ userId }: { userId: string }) {
+  const [filter, setFilter] = useState<HistFilter>("todos");
+  const [expanded, setExpanded] = useState(true);
+
+  const q = useQuery({
+    queryKey: ["user-pred-history", userId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("predictions")
+        .select(`match_id, home_score, away_score, points, is_exact,
+          matches(kickoff, group, stage, status, home_score, away_score,
+            home:teams!matches_home_team_id_fkey(name, code, flag_url),
+            away:teams!matches_away_team_id_fkey(name, code, flag_url))`)
+        .eq("user_id", userId);
+      if (error) throw error;
+      return (data ?? []) as unknown as PredHistory[];
+    },
+    refetchInterval: 60_000,
+  });
+
+  const allPreds = (q.data ?? [])
+    .filter((p) => p.matches)
+    .sort((a, b) => new Date(b.matches!.kickoff).getTime() - new Date(a.matches!.kickoff).getTime());
+
+  const filtered = allPreds.filter((p) => {
+    const finished = p.matches?.status === "finished";
+    if (filter === "exactos") return p.is_exact;
+    if (filter === "correctos") return finished && !p.is_exact && (p.points ?? 0) > 0;
+    if (filter === "fallados") return finished && (p.points ?? 0) === 0;
+    if (filter === "pendientes") return !finished;
+    return true;
+  });
+
+  const tabs: { key: HistFilter; label: string; count?: number }[] = [
+    { key: "todos", label: "Todos", count: allPreds.length },
+    { key: "exactos", label: "⭐ Exactos", count: allPreds.filter((p) => p.is_exact).length },
+    { key: "correctos", label: "✓ Correctos", count: allPreds.filter((p) => p.matches?.status === "finished" && !p.is_exact && (p.points ?? 0) > 0).length },
+    { key: "fallados", label: "✗ Sin pts", count: allPreds.filter((p) => p.matches?.status === "finished" && (p.points ?? 0) === 0).length },
+    { key: "pendientes", label: "⏳ Pendientes", count: allPreds.filter((p) => p.matches?.status !== "finished").length },
+  ];
+
+  return (
+    <div className="glass-strong rounded-3xl p-6 sm:p-8 mt-6">
+      {/* Header */}
+      <button onClick={() => setExpanded((v) => !v)} className="w-full flex items-center justify-between mb-1">
+        <h2 className="font-display font-semibold text-lg flex items-center gap-2">
+          <History className="w-4 h-4 text-primary" /> Mis pronósticos
+        </h2>
+        {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
+      </button>
+
+      {!expanded && (
+        <p className="text-xs text-muted-foreground">{allPreds.length} pronósticos · clickeá para ver</p>
+      )}
+
+      {expanded && (
+        <>
+          {/* Filtros */}
+          <div className="flex gap-2 flex-wrap mb-4 mt-4">
+            {tabs.map((t) => (
+              <button key={t.key} onClick={() => setFilter(t.key)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-medium transition ${
+                  filter === t.key ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
+                }`}>
+                {t.label} {t.count !== undefined && <span className="ml-1 opacity-60">{t.count}</span>}
+              </button>
+            ))}
+          </div>
+
+          {q.isLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+          ) : filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">No hay pronósticos en esta categoría.</p>
+          ) : (
+            <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
+              {filtered.map((p) => {
+                const m = p.matches!;
+                const finished = m.status === "finished";
+                const kickoff = new Date(m.kickoff);
+                const isExact = p.is_exact;
+                const hasPoints = (p.points ?? 0) > 0;
+                const pts = p.points;
+
+                const rowBg = isExact ? "border-gold/30 bg-gold/5" :
+                  finished && hasPoints ? "border-secondary/20 bg-secondary/5" :
+                  finished && !hasPoints ? "border-destructive/20" :
+                  "border-border/30";
+
+                const ptsBadge = isExact
+                  ? <span className="text-[10px] font-mono font-bold text-gold px-2 py-0.5 rounded-full bg-gold/15">⭐ +{pts}</span>
+                  : finished && hasPoints
+                  ? <span className="text-[10px] font-mono font-bold text-secondary px-2 py-0.5 rounded-full bg-secondary/15">✓ +{pts}</span>
+                  : finished
+                  ? <span className="text-[10px] font-mono font-bold text-destructive px-2 py-0.5 rounded-full bg-destructive/10">✗ 0</span>
+                  : <span className="text-[10px] font-mono text-muted-foreground px-2 py-0.5 rounded-full glass">⏳</span>;
+
+                return (
+                  <div key={p.match_id} className={`flex items-center gap-3 p-3 rounded-xl border transition hover:bg-card/40 ${rowBg}`}>
+                    {/* Equipos */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+                        {m.group && <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-primary/15 text-primary">G{m.group}</span>}
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          {kickoff.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs font-medium">
+                        {m.home?.flag_url && <img src={m.home.flag_url} alt="" className="w-4 h-4 rounded-full object-cover" />}
+                        <span className="truncate max-w-[70px] sm:max-w-none">{m.home?.name}</span>
+                        <span className="text-muted-foreground flex-shrink-0">vs</span>
+                        {m.away?.flag_url && <img src={m.away.flag_url} alt="" className="w-4 h-4 rounded-full object-cover" />}
+                        <span className="truncate max-w-[70px] sm:max-w-none">{m.away?.name}</span>
+                      </div>
+                    </div>
+
+                    {/* Tu pronóstico */}
+                    <div className="text-center flex-shrink-0">
+                      <div className="text-[9px] text-muted-foreground mb-0.5 font-mono">TU PRON.</div>
+                      <div className={`font-mono font-bold text-sm ${isExact ? "text-gold" : hasPoints && finished ? "text-secondary" : "text-foreground"}`}>
+                        {p.home_score}–{p.away_score}
+                      </div>
+                    </div>
+
+                    {/* Resultado real */}
+                    {finished && (
+                      <div className="text-center flex-shrink-0">
+                        <div className="text-[9px] text-muted-foreground mb-0.5 font-mono">RESULTADO</div>
+                        <div className="font-mono font-bold text-sm text-foreground">{m.home_score}–{m.away_score}</div>
+                      </div>
+                    )}
+
+                    {/* Puntos */}
+                    <div className="flex-shrink-0">{ptsBadge}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function PerfilPage() {
   const { user, profile, refreshProfile, signOut } = useAuth();
   const [name, setName] = useState(profile?.display_name ?? "");
@@ -45,16 +210,13 @@ function PerfilPage() {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Posición en el ranking
   const rankingQ = useQuery({
     queryKey: ["user-ranking-position", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("profiles")
-        .select("id, total_points, exact_hits")
-        .order("total_points", { ascending: false })
-        .order("exact_hits", { ascending: false });
+        .from("profiles").select("id, total_points, exact_hits")
+        .order("total_points", { ascending: false }).order("exact_hits", { ascending: false });
       if (error) throw error;
       const pos = (data ?? []).findIndex((p: any) => p.id === user!.id) + 1;
       return { position: pos, total: data?.length ?? 0 };
@@ -62,15 +224,12 @@ function PerfilPage() {
     refetchInterval: 30_000,
   });
 
-  // Stats de predicciones del usuario
   const predsQ = useQuery({
     queryKey: ["user-preds-stats", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("predictions")
-        .select("home_score, away_score, points, is_exact")
-        .eq("user_id", user!.id);
+        .from("predictions").select("home_score, away_score, points, is_exact").eq("user_id", user!.id);
       if (error) throw error;
       const preds = data ?? [];
       const total = preds.length;
@@ -80,9 +239,7 @@ function PerfilPage() {
       const homeWins = preds.filter((p: any) => p.home_score > p.away_score).length;
       const draws = preds.filter((p: any) => p.home_score === p.away_score).length;
       const awayWins = preds.filter((p: any) => p.away_score > p.home_score).length;
-      const avgGoals = total > 0
-        ? (preds.reduce((acc: number, p: any) => acc + p.home_score + p.away_score, 0) / total).toFixed(1)
-        : "—";
+      const avgGoals = total > 0 ? (preds.reduce((acc: number, p: any) => acc + p.home_score + p.away_score, 0) / total).toFixed(1) : "—";
       const pct = withResult.length > 0 ? Math.round((correct / withResult.length) * 100) : 0;
       return { total, withResult: withResult.length, correct, exact, homeWins, draws, awayWins, avgGoals, pct };
     },
@@ -110,9 +267,7 @@ function PerfilPage() {
       toast.success("Avatar actualizado");
     } catch (err) {
       toast.error("No se pudo subir el avatar", { description: err instanceof Error ? err.message : undefined });
-    } finally {
-      setUploading(false);
-    }
+    } finally { setUploading(false); }
   };
 
   const handleSave = async () => {
@@ -134,7 +289,6 @@ function PerfilPage() {
         <div className="absolute -bottom-16 -left-16 w-48 h-48 rounded-full bg-secondary/10 blur-3xl pointer-events-none" />
 
         <div className="relative flex flex-col sm:flex-row items-start sm:items-center gap-6">
-          {/* Avatar */}
           <div className="relative group flex-shrink-0">
             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden shadow-glow ring-2 ring-primary/30">
               {profile.avatar_url
@@ -156,10 +310,7 @@ function PerfilPage() {
             {rankPos > 0 && (
               <div className="flex items-center gap-1.5 mt-2">
                 <Medal className={`w-4 h-4 ${rankPos === 1 ? "text-gold" : rankPos === 2 ? "text-silver" : rankPos === 3 ? "text-bronze" : "text-muted-foreground"}`} />
-                <span className="text-sm font-mono font-bold">
-                  #{rankPos}
-                  <span className="text-muted-foreground font-normal"> de {rankTotal}</span>
-                </span>
+                <span className="text-sm font-mono font-bold">#{rankPos}<span className="text-muted-foreground font-normal"> de {rankTotal}</span></span>
                 <Link to="/ranking" className="text-xs text-primary hover:underline ml-1">ver ranking →</Link>
               </div>
             )}
@@ -171,42 +322,22 @@ function PerfilPage() {
           </button>
         </div>
 
-        {/* Stats principales — 3 cards */}
         <div className="grid grid-cols-3 gap-3 sm:gap-4 mt-8">
-          <StatCard icon={Trophy} label="Puntos totales" value={profile.total_points}
-            gradient="from-yellow-400/20 to-orange-400/10" border="border-yellow-400/30"
-            iconColor="text-yellow-400" valueColor="text-yellow-400"
-            glow="shadow-[0_0_20px_rgba(250,204,21,0.15)]" delay={0.05} />
-          <StatCard icon={Target} label="Exactos" value={profile.exact_hits}
-            gradient="from-primary/20 to-cyan-400/10" border="border-primary/30"
-            iconColor="text-primary" valueColor="text-primary"
-            glow="shadow-[0_0_20px_rgba(99,102,241,0.15)]" delay={0.1} />
-          <StatCard icon={Flame} label="Racha" value={profile.current_streak}
-            gradient="from-secondary/20 to-emerald-400/10" border="border-secondary/30"
-            iconColor="text-secondary" valueColor="text-secondary"
-            glow="shadow-[0_0_20px_rgba(16,185,129,0.15)]" delay={0.15} />
+          <StatCard icon={Trophy} label="Puntos totales" value={profile.total_points} gradient="from-yellow-400/20 to-orange-400/10" border="border-yellow-400/30" iconColor="text-yellow-400" valueColor="text-yellow-400" glow="shadow-[0_0_20px_rgba(250,204,21,0.15)]" delay={0.05} />
+          <StatCard icon={Target} label="Exactos" value={profile.exact_hits} gradient="from-primary/20 to-cyan-400/10" border="border-primary/30" iconColor="text-primary" valueColor="text-primary" glow="shadow-[0_0_20px_rgba(99,102,241,0.15)]" delay={0.1} />
+          <StatCard icon={Flame} label="Racha" value={profile.current_streak} gradient="from-secondary/20 to-emerald-400/10" border="border-secondary/30" iconColor="text-secondary" valueColor="text-secondary" glow="shadow-[0_0_20px_rgba(16,185,129,0.15)]" delay={0.15} />
         </div>
 
-        {/* Stats secundarias — 3 más */}
         {stats && (
           <div className="grid grid-cols-3 gap-3 sm:gap-4 mt-3">
-            <StatCard icon={BarChart3} label="Pronósticos" value={stats.total}
-              gradient="from-violet-400/20 to-purple-400/10" border="border-violet-400/30"
-              iconColor="text-violet-400" valueColor="text-violet-400"
-              glow="shadow-[0_0_20px_rgba(167,139,250,0.1)]" delay={0.2} />
-            <StatCard icon={Percent} label="% Aciertos" value={stats.withResult > 0 ? `${stats.pct}%` : "—"}
-              gradient="from-rose-400/20 to-pink-400/10" border="border-rose-400/30"
-              iconColor="text-rose-400" valueColor="text-rose-400"
-              glow="shadow-[0_0_20px_rgba(251,113,133,0.1)]" delay={0.25} />
-            <StatCard icon={TrendingUp} label="⚽ Goles/pdo." value={stats.total > 0 ? stats.avgGoals : "—"}
-              gradient="from-amber-400/20 to-yellow-400/10" border="border-amber-400/30"
-              iconColor="text-amber-400" valueColor="text-amber-400"
-              glow="shadow-[0_0_20px_rgba(251,191,36,0.1)]" delay={0.3} />
+            <StatCard icon={BarChart3} label="Pronósticos" value={stats.total} gradient="from-violet-400/20 to-purple-400/10" border="border-violet-400/30" iconColor="text-violet-400" valueColor="text-violet-400" glow="shadow-[0_0_20px_rgba(167,139,250,0.1)]" delay={0.2} />
+            <StatCard icon={Percent} label="% Aciertos" value={stats.withResult > 0 ? `${stats.pct}%` : "—"} gradient="from-rose-400/20 to-pink-400/10" border="border-rose-400/30" iconColor="text-rose-400" valueColor="text-rose-400" glow="shadow-[0_0_20px_rgba(251,113,133,0.1)]" delay={0.25} />
+            <StatCard icon={TrendingUp} label="⚽ Goles/pdo." value={stats.total > 0 ? stats.avgGoals : "—"} gradient="from-amber-400/20 to-yellow-400/10" border="border-amber-400/30" iconColor="text-amber-400" valueColor="text-amber-400" glow="shadow-[0_0_20px_rgba(251,191,36,0.1)]" delay={0.3} />
           </div>
         )}
       </motion.div>
 
-      {/* Tu estilo de juego */}
+      {/* Estilo de juego */}
       {stats && stats.total > 0 && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
           className="glass-strong rounded-3xl p-6 sm:p-8 mt-6">
@@ -231,25 +362,11 @@ function PerfilPage() {
               </div>
             ))}
           </div>
-
-          {/* Info adicional */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <div className="glass rounded-xl p-3 text-center">
-              <div className="font-display font-bold text-xl text-secondary">{stats.correct}</div>
-              <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-0.5">Con puntos</div>
-            </div>
-            <div className="glass rounded-xl p-3 text-center">
-              <div className="font-display font-bold text-xl text-gold">{stats.exact}</div>
-              <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-0.5">Exactos ⭐</div>
-            </div>
-            <div className="glass rounded-xl p-3 text-center">
-              <div className="font-display font-bold text-xl text-muted-foreground">{stats.withResult}</div>
-              <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-0.5">Con resultado</div>
-            </div>
-            <div className="glass rounded-xl p-3 text-center">
-              <div className="font-display font-bold text-xl text-primary">{stats.total - stats.withResult}</div>
-              <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-0.5">Pendientes</div>
-            </div>
+            <div className="glass rounded-xl p-3 text-center"><div className="font-display font-bold text-xl text-secondary">{stats.correct}</div><div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-0.5">Con puntos</div></div>
+            <div className="glass rounded-xl p-3 text-center"><div className="font-display font-bold text-xl text-gold">{stats.exact}</div><div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-0.5">Exactos ⭐</div></div>
+            <div className="glass rounded-xl p-3 text-center"><div className="font-display font-bold text-xl text-muted-foreground">{stats.withResult}</div><div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-0.5">Con resultado</div></div>
+            <div className="glass rounded-xl p-3 text-center"><div className="font-display font-bold text-xl text-primary">{stats.total - stats.withResult}</div><div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-0.5">Pendientes</div></div>
           </div>
         </motion.div>
       )}
@@ -259,7 +376,12 @@ function PerfilPage() {
         <ChampionPicker />
       </motion.div>
 
-      {/* Datos + foto8 */}
+      {/* Historial de pronósticos */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+        <PredHistorySection userId={user.id} />
+      </motion.div>
+
+      {/* Datos + foto */}
       <div className="flex gap-4 items-start mt-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
           className="flex-1 glass-strong rounded-3xl p-6 sm:p-8">
