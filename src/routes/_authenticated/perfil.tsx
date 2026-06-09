@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import {
@@ -14,6 +14,7 @@ import { AchievementsGrid } from "@/components/achievements/AchievementsGrid";
 import { ChampionPicker } from "@/components/fixture/ChampionPicker";
 import foto8 from "@/assets/foto8.jpg";
 import { Lightbox } from "@/components/ui/Lightbox";
+import confetti from "canvas-confetti";
 
 export const Route = createFileRoute("/_authenticated/perfil")({
   component: PerfilPage,
@@ -247,6 +248,22 @@ function PerfilPage() {
   });
 
   if (!user || !profile) return null;
+
+  // Confetti al detectar exactos nuevos ⭐
+  useEffect(() => {
+    if (!profile?.exact_hits || profile.exact_hits === 0 || !user?.id) return;
+    const key = `confetti_${user.id}`;
+    const lastShown = parseInt(localStorage.getItem(key) ?? "0");
+    if (profile.exact_hits > lastShown) {
+      setTimeout(() => {
+        confetti({ particleCount: 120, spread: 80, origin: { y: 0.55 }, colors: ["#FFD700","#00D2BE","#a855f7","#ec4899","#22c55e"] });
+        setTimeout(() => confetti({ particleCount: 60, spread: 120, origin: { y: 0.4 }, angle: 60, colors: ["#FFD700","#00D2BE"] }), 300);
+        setTimeout(() => confetti({ particleCount: 60, spread: 120, origin: { y: 0.4 }, angle: 120, colors: ["#a855f7","#ec4899"] }), 400);
+      }, 600);
+      localStorage.setItem(key, String(profile.exact_hits));
+    }
+  }, [profile?.exact_hits, user?.id]);
+
 
   const initials = profile.display_name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
   const stats = predsQ.data;
