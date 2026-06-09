@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CalendarDays, Filter, ChevronDown, Swords } from "lucide-react";
+import { Loader2, CalendarDays, Filter, ChevronDown, Swords, Zap, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { MatchCard, type MatchWithTeams, type Prediction } from "@/components/fixture/MatchCard";
@@ -17,7 +17,6 @@ export const Route = createFileRoute("/_authenticated/fixture")({
 
 const GROUPS = ["TODOS", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"] as const;
 const PAGE_SIZE = 8;
-
 const KNOCKOUT_STAGES = [
   { key: "r32",   label: "Octavos de Final" },
   { key: "r16",   label: "Dieciseisavos de Final" },
@@ -27,11 +26,115 @@ const KNOCKOUT_STAGES = [
   { key: "final", label: "⚽ Gran Final" },
 ];
 
+function toArgDate(iso: string) {
+  return new Date(iso).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function pad(n: number) { return String(n).padStart(2, "0"); }
+
+function LiveCountdown({ kickoff }: { kickoff: string }) {
+  const [ms, setMs] = useState(() => Math.max(0, new Date(kickoff).getTime() - Date.now()));
+  useEffect(() => {
+    if (ms === 0) return;
+    const id = setInterval(() => {
+      const r = Math.max(0, new Date(kickoff).getTime() - Date.now());
+      setMs(r);
+      if (r === 0) clearInterval(id);
+    }, 1000);
+    return () => clearInterval(id);
+  }, [kickoff, ms]);
+  if (ms === 0) return <span className="text-secondary font-mono text-xs font-bold">En juego</span>;
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  const s = Math.floor((ms % 60_000) / 1_000);
+  const urgent = ms < 30 * 60_000;
+  return (
+    <span className={`font-mono text-xs font-bold flex items-center gap-1 ${urgent ? "text-destructive" : "text-primary"}`}>
+      {urgent && <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-current opacity-75"/><span className="relative inline-flex rounded-full h-2 w-2 bg-current"/></span>}
+      {!urgent && <Clock className="w-3 h-3" />}
+      {h > 0 ? `${h}h ${pad(m)}m` : `${pad(m)}m ${pad(s)}s`}
+    </span>
+  );
+}
+
+function TodaySection({ matches, predByMatch }: { matches: MatchWithTeams[]; predByMatch: Map<string, Prediction> }) {
+  const todayStr = toArgDate(new Date().toISOString());
+
+  const todayMatches = matches.filter((m) => toArgDate(m.kickoff) === todayStr);
+
+  // Si no hay partidos hoy, buscar el próximo
+  const nextMatch = todayMatches.length === 0
+    ? matches.filter((m) => new Date(m.kickoff).getTime() > Date.now() && m.status === "scheduled")
+        .sort((a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime())[0]
+    : null;
+
+  if (todayMatches.length === 0 && !nextMatch) return null;
+
+  const isToday = todayMatches.length > 0;
+  const displayMatches = isToday ? todayMatches : [nextMatch!];
+
+  return (
+    <section className="mb-8">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-mono font-bold ${
+          isToday ? "bg-secondary/15 text-secondary" : "bg-primary/10 text-primary"
+        }`}>
+          {isToday ? (
+            <><span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-75"/><span className="relative inline-flex rounded-full h-2 w-2 bg-secondary"/></span> HOY</>
+          ) : (
+            <><Clock className="w-3 h-3" /> PRÓXIMO</>
+          )}
+        </div>
+        <h2 className="font-display font-bold text-lg">
+          {isToday ? `${todayMatches.length} partido${todayMatches.length > 1 ? "s" : ""} hoy` : "Próximo partido"}
+        </h2>
+        {isToday && (
+          <div className="flex-1 h-px bg-gradient-to-r from-secondary/40 to-transparent" />
+        )}
+      </div>
+
+      {/* Cards destacadas */}
+      <div className={`grid gap-3 ${displayMatches.length > 1 ? "sm:grid-cols-2" : "sm:grid-cols-1 max-w-md"}`}>
+        {displayMatches.map((m) => {
+          const locked = new Date(m.kickoff).getTime() <= Date.now();
+          const finished = m.status === "finished";
+          return (
+            <div key={m.id} className="relative">
+              {/* Glow border destacado */}
+              <div className={`absolute -inset-0.5 rounded-[1.25rem] blur-sm opacity-60 ${
+                finished ? "bg-gradient-to-br from-primary/40 to-secondary/40" :
+                locked ? "bg-gradient-to-br from-gold/30 to-primary/30" :
+                "bg-gradient-to-br from-secondary/50 to-primary/50"
+              }`} />
+              <div className="relative">
+                <MatchCard match={m} prediction={predByMatch.get(m.id) ?? null} />
+              </div>
+              {/* Badge de countdown si no arrancó */}
+              {!locked && !finished && (
+                <div className="absolute -top-2 -right-2 z-10 glass-strong rounded-lg px-2 py-1 shadow-glow border border-border/60">
+                  <LiveCountdown kickoff={m.kickoff} />
+                </div>
+              )}
+              {!finished && locked && (
+                <div className="absolute -top-2 -right-2 z-10 bg-gold/20 border border-gold/40 rounded-lg px-2 py-1">
+                  <span className="text-[10px] font-mono font-bold text-gold">🔴 EN VIVO</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Separador */}
+      <div className="mt-6 h-px bg-gradient-to-r from-transparent via-border/60 to-transparent" />
+    </section>
+  );
+}
+
 function FixturePage() {
   const { user } = useAuth();
   const [phase, setPhase] = useState<"grupos" | "knockout">("grupos");
-
-  // Grupos state
   const [group, setGroup] = useState<(typeof GROUPS)[number]>("TODOS");
   const [onlyPending, setOnlyPending] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -69,7 +172,6 @@ function FixturePage() {
     return m;
   }, [predsQ.data]);
 
-  // ── GRUPOS ──
   const groupFiltered = useMemo(() => {
     return (matchesQ.data ?? []).filter((m) => {
       if (m.stage !== "group") return false;
@@ -99,7 +201,6 @@ function FixturePage() {
     return Array.from(map.entries());
   }, [visible]);
 
-  // ── KNOCKOUT ──
   const knockoutByStage = useMemo(() => {
     const map = new Map<string, MatchWithTeams[]>();
     for (const m of matchesQ.data ?? []) {
@@ -111,14 +212,13 @@ function FixturePage() {
   }, [matchesQ.data]);
 
   const hasKnockout = knockoutByStage.size > 0;
-
   const totalPreds = predsQ.data?.length ?? 0;
   const totalMatches = (matchesQ.data ?? []).filter((m) => m.stage === "group").length;
+  const allMatches = matchesQ.data ?? [];
 
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6">
 
-      {/* Fotos decorativas */}
       <div className="fixed top-1/3 left-4 w-32 z-10 pointer-events-none select-none hidden 2xl:block">
         <div className="rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow -rotate-3">
           <Lightbox src={foto5} imgClassName="w-full h-auto" />
@@ -132,8 +232,7 @@ function FixturePage() {
 
       <header className="mb-6 sm:mb-8">
         <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-primary">
-          <CalendarDays className="w-4 h-4" />
-          Fixture completo
+          <CalendarDays className="w-4 h-4" /> Fixture completo
         </div>
         <h1 className="font-display font-bold text-3xl sm:text-5xl mt-2 text-gradient-hero">
           Fixture & Pronósticos
@@ -148,6 +247,11 @@ function FixturePage() {
       </header>
 
       <ChampionPicker />
+
+      {/* ─── SECCIÓN PARTIDOS DE HOY ─── */}
+      {!matchesQ.isLoading && !predsQ.isLoading && (
+        <TodaySection matches={allMatches} predByMatch={predByMatch} />
+      )}
 
       {/* Tabs de fase */}
       <div className="flex gap-2 mb-6">
@@ -171,7 +275,6 @@ function FixturePage() {
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : phase === "grupos" ? (
-        /* ───── VISTA GRUPOS ───── */
         <>
           <div className="sticky top-24 z-30 mb-6">
             <div className="glass-strong rounded-2xl p-3 flex flex-col sm:flex-row sm:items-center gap-3">
@@ -213,16 +316,12 @@ function FixturePage() {
                   </section>
                 ))}
               </div>
-
               {hasMore && (
                 <div className="flex flex-col items-center gap-2 mt-10 mb-4">
-                  <p className="text-xs text-muted-foreground font-mono">
-                    Mostrando {visible.length} de {groupFiltered.length} partidos
-                  </p>
+                  <p className="text-xs text-muted-foreground font-mono">Mostrando {visible.length} de {groupFiltered.length} partidos</p>
                   <button onClick={() => setVisibleCount((v) => v + PAGE_SIZE)}
                     className="inline-flex items-center gap-2 glass-strong rounded-2xl px-6 py-3 text-sm font-semibold hover:bg-card transition active:scale-95 touch-manipulation">
-                    <ChevronDown className="w-4 h-4" />
-                    Ver más partidos
+                    <ChevronDown className="w-4 h-4" /> Ver más partidos
                   </button>
                 </div>
               )}
@@ -235,7 +334,6 @@ function FixturePage() {
           )}
         </>
       ) : (
-        /* ───── VISTA KNOCKOUT ───── */
         !hasKnockout ? (
           <div className="glass-strong rounded-2xl p-14 text-center">
             <Swords className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-40" />
