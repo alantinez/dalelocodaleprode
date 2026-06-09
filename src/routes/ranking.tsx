@@ -25,29 +25,44 @@ export const Route = createFileRoute("/ranking")({
   component: RankingPage,
 });
 
-type Profile = {
-  id: string;
-  display_name: string;
-  avatar_url: string | null;
-  total_points: number;
-  exact_hits: number;
-  current_streak: number;
-};
+type Profile = { id: string; display_name: string; avatar_url: string | null; total_points: number; exact_hits: number; current_streak: number; };
+type HistoryEntry = { user_id: string; position: number; snapshot_at: string; label: string | null; };
 
-type HistoryEntry = {
-  user_id: string;
-  position: number;
-  snapshot_at: string;
-  label: string | null;
-};
-
-// Paleta de colores estilo F1
 const PLAYER_COLORS = [
-  "#e8002d", "#0090ff", "#00d2be", "#ff8000", "#dc0000",
-  "#ffffff", "#006f62", "#b6babd", "#f596c8", "#900000",
-  "#2293d1", "#356cac", "#37bedd", "#5e8faa", "#c92d4b",
-  "#fe86bc", "#6cd3bf", "#ff87bc", "#00594f", "#cacfd2",
+  "#e8002d","#0090ff","#00d2be","#ff8000","#dc0000",
+  "#ffffff","#006f62","#b6babd","#f596c8","#900000",
+  "#2293d1","#356cac","#37bedd","#5e8faa","#c92d4b",
+  "#fe86bc","#6cd3bf","#ff87bc","#00594f","#cacfd2",
 ];
+
+/* ─── SKELETON ─── */
+function SkeletonRow({ hasHistory }: { hasHistory: boolean }) {
+  const cols = hasHistory
+    ? "grid-cols-[40px_24px_1fr_52px] sm:grid-cols-[44px_28px_1fr_60px_60px_60px]"
+    : "grid-cols-[40px_1fr_52px] sm:grid-cols-[44px_1fr_60px_60px_60px]";
+  return (
+    <div className={`grid ${cols} gap-2 sm:gap-3 px-4 sm:px-6 py-4 items-center border-b border-border/20`}>
+      <div className="h-6 w-8 rounded-lg bg-border/30 animate-pulse" />
+      {hasHistory && <div className="h-4 w-5 rounded bg-border/30 animate-pulse mx-auto" />}
+      <div className="flex items-center gap-2.5">
+        <div className="w-9 h-9 rounded-lg bg-border/30 animate-pulse flex-shrink-0" />
+        <div className="h-4 rounded-lg bg-border/30 animate-pulse flex-1 max-w-[140px]" />
+      </div>
+      <div className="h-5 w-8 rounded-lg bg-border/30 animate-pulse ml-auto" />
+      <div className="hidden sm:block h-4 w-6 rounded bg-border/30 animate-pulse ml-auto" />
+      <div className="hidden sm:block h-4 w-6 rounded bg-border/30 animate-pulse ml-auto" />
+    </div>
+  );
+}
+
+function RankingSkeleton() {
+  return (
+    <div className="glass-strong rounded-2xl overflow-hidden">
+      <div className="px-4 sm:px-6 py-3 border-b border-border/50 h-10 bg-card/20 animate-pulse" />
+      {Array.from({ length: 8 }).map((_, i) => <SkeletonRow key={i} hasHistory={false} />)}
+    </div>
+  );
+}
 
 function PositionDelta({ delta }: { delta: number | null | "new" }) {
   if (delta === "new") return <span className="text-[9px] font-mono font-bold text-gold uppercase tracking-wider">NEW</span>;
@@ -65,7 +80,6 @@ function PositionDelta({ delta }: { delta: number | null | "new" }) {
   );
 }
 
-// Tooltip personalizado para el gráfico
 function ChartTooltip({ active, payload, label }: any) {
   if (!active || !payload || payload.length === 0) return null;
   const sorted = [...payload].sort((a, b) => a.value - b.value);
@@ -86,31 +100,18 @@ function ChartTooltip({ active, payload, label }: any) {
 }
 
 function EvolutionChart({ allHistory }: { allHistory: HistoryEntry[] }) {
-  // Agrupar snapshots por timestamp → ordenarlos cronológicamente
   const snapshotMap = new Map<string, { label: string; entries: HistoryEntry[] }>();
   for (const row of allHistory) {
-    if (!snapshotMap.has(row.snapshot_at)) {
-      snapshotMap.set(row.snapshot_at, { label: row.label ?? row.snapshot_at.slice(0, 10), entries: [] });
-    }
+    if (!snapshotMap.has(row.snapshot_at)) snapshotMap.set(row.snapshot_at, { label: row.label ?? row.snapshot_at.slice(0, 10), entries: [] });
     snapshotMap.get(row.snapshot_at)!.entries.push(row);
   }
-
-  const snapshots = [...snapshotMap.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([, v]) => v);
-
+  const snapshots = [...snapshotMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v);
   if (snapshots.length < 2) return null;
 
-  // Players que aparecen en al menos 1 snapshot
   const playerIds = new Set(allHistory.map((r) => r.user_id));
-
-  // Mapa user_id → display_name (desde el historial, tomamos lo que tengamos)
-  // Vamos a necesitar los nombres — los pasamos desde afuera
   const userNames = new Map<string, string>();
-  // Llenamos con los IDs (los nombres llegan del componente padre)
   playerIds.forEach((id) => userNames.set(id, id.slice(0, 6)));
 
-  // Construir data para Recharts
   const chartData = snapshots.map((snap) => {
     const point: Record<string, any> = { snapshot: snap.label };
     for (const entry of snap.entries) {
@@ -120,11 +121,8 @@ function EvolutionChart({ allHistory }: { allHistory: HistoryEntry[] }) {
     return point;
   });
 
-  // Lista de jugadores para las líneas
   const players = [...playerIds].map((id, idx) => ({
-    id,
-    name: userNames.get(id) ?? id.slice(0, 6),
-    color: PLAYER_COLORS[idx % PLAYER_COLORS.length],
+    id, name: userNames.get(id) ?? id.slice(0, 6), color: PLAYER_COLORS[idx % PLAYER_COLORS.length],
   }));
 
   const maxPos = Math.max(...allHistory.map((r) => r.position));
@@ -140,39 +138,16 @@ function EvolutionChart({ allHistory }: { allHistory: HistoryEntry[] }) {
         <ResponsiveContainer width="100%" height="100%">
           <RLineChart data={chartData} margin={{ top: 8, right: 16, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
-            <XAxis
-              dataKey="snapshot"
-              tick={{ fill: "#888", fontSize: 11, fontFamily: "monospace" }}
-              axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
-              tickLine={false}
-            />
-            <YAxis
-              reversed
-              domain={[1, maxPos]}
-              tickCount={maxPos}
-              tick={{ fill: "#888", fontSize: 11, fontFamily: "monospace" }}
-              axisLine={false}
-              tickLine={false}
-              tickFormatter={(v) => `#${v}`}
-            />
+            <XAxis dataKey="snapshot" tick={{ fill: "#888", fontSize: 11, fontFamily: "monospace" }} axisLine={{ stroke: "rgba(255,255,255,0.1)" }} tickLine={false} />
+            <YAxis reversed domain={[1, maxPos]} tickCount={maxPos} tick={{ fill: "#888", fontSize: 11, fontFamily: "monospace" }} axisLine={false} tickLine={false} tickFormatter={(v) => `#${v}`} />
             <Tooltip content={<ChartTooltip />} />
             {players.map((p) => (
-              <Line
-                key={p.id}
-                type="monotone"
-                dataKey={p.name}
-                stroke={p.color}
-                strokeWidth={2.5}
+              <Line key={p.id} type="monotone" dataKey={p.name} stroke={p.color} strokeWidth={2.5}
                 dot={{ r: 5, fill: p.color, strokeWidth: 2, stroke: "#0a0a0f" }}
                 activeDot={{ r: 7, stroke: p.color, strokeWidth: 2, fill: "#0a0a0f" }}
-                connectNulls
-              />
+                connectNulls />
             ))}
-            <Legend
-              formatter={(value) => <span style={{ color: "#ccc", fontSize: 11, fontFamily: "monospace" }}>{value}</span>}
-              iconType="circle"
-              iconSize={8}
-            />
+            <Legend formatter={(value) => <span style={{ color: "#ccc", fontSize: 11, fontFamily: "monospace" }}>{value}</span>} iconType="circle" iconSize={8} />
           </RLineChart>
         </ResponsiveContainer>
       </div>
@@ -201,14 +176,10 @@ function RankingPage() {
     refetchInterval: 30_000,
   });
 
-  // Historia completa para el gráfico F1
   const allHistoryQ = useQuery({
     queryKey: ["ranking-history-all"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ranking_history")
-        .select("user_id, position, snapshot_at, label")
-        .order("snapshot_at", { ascending: true });
+      const { data, error } = await supabase.from("ranking_history").select("user_id, position, snapshot_at, label").order("snapshot_at", { ascending: true });
       if (error) throw error;
       return (data ?? []) as HistoryEntry[];
     },
@@ -218,18 +189,11 @@ function RankingPage() {
   const historyQ = useQuery({
     queryKey: ["ranking-history-latest"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("ranking_history")
-        .select("user_id, position, snapshot_at, label")
-        .order("snapshot_at", { ascending: false })
-        .limit(300);
-
+      const { data, error } = await supabase.from("ranking_history").select("user_id, position, snapshot_at, label").order("snapshot_at", { ascending: false }).limit(300);
       if (error || !data || data.length === 0) return { prevMap: new Map<string, number>(), label: null };
-
       const timestamps = [...new Set(data.map((d: HistoryEntry) => d.snapshot_at))].sort().reverse();
       const latestTs = timestamps[0];
       const latestRows = data.filter((d: HistoryEntry) => d.snapshot_at === latestTs);
-
       const prevMap = new Map<string, number>();
       latestRows.forEach((d: HistoryEntry) => prevMap.set(d.user_id, d.position));
       return { prevMap, label: latestRows[0]?.label ?? null };
@@ -238,19 +202,13 @@ function RankingPage() {
   });
 
   const hasHistory = (historyQ.data?.prevMap.size ?? 0) > 0;
-
-  // Número distinto de snapshots para el gráfico
   const distinctSnapshots = new Set(allHistoryQ.data?.map((r) => r.snapshot_at) ?? []).size;
   const showChart = distinctSnapshots >= 2;
 
-  // Enriquecer el historial con nombres reales
   const enrichedHistory = (() => {
     if (!allHistoryQ.data || !q.data) return allHistoryQ.data ?? [];
     const nameMap = new Map(q.data.map((p) => [p.id, p.display_name]));
-    return allHistoryQ.data.map((row) => ({
-      ...row,
-      display_name: nameMap.get(row.user_id) ?? row.user_id.slice(0, 6),
-    }));
+    return allHistoryQ.data.map((row) => ({ ...row, display_name: nameMap.get(row.user_id) ?? row.user_id.slice(0, 6) }));
   })();
 
   const gridCols = hasHistory
@@ -260,7 +218,6 @@ function RankingPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-
       <div className="fixed top-32 right-4 w-36 z-10 hidden 2xl:block">
         <Lightbox src={mascota2} className="rounded-2xl overflow-hidden border-2 border-primary shadow-glow rotate-3" imgClassName="w-full h-auto" />
       </div>
@@ -268,7 +225,7 @@ function RankingPage() {
         <Lightbox src={foto3} className="rounded-2xl overflow-hidden border-2 border-secondary/40 shadow-glow -rotate-2" imgClassName="w-full h-auto" />
       </div>
 
-      <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-28 pb-20">
+      <main className="mx-auto max-w-5xl px-4 sm:px-6 pt-28 pb-24">
         <div className="mb-6">
           <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition mb-3">
             <ArrowLeft className="w-3.5 h-3.5" /> Volver
@@ -299,10 +256,9 @@ function RankingPage() {
           )}
         </div>
 
+        {/* Skeleton o tabla */}
         {q.isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-6 h-6 animate-spin text-primary" />
-          </div>
+          <RankingSkeleton />
         ) : !q.data || q.data.length === 0 ? (
           <div className="glass-strong rounded-2xl p-12 text-center">
             <Trophy className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
@@ -311,23 +267,13 @@ function RankingPage() {
         ) : (
           <>
             <div className="glass-strong rounded-2xl overflow-hidden">
-              {/* Header */}
               <div className={`grid ${gridCols} gap-2 sm:gap-3 px-4 sm:px-6 py-3 border-b border-border/50 text-[10px] sm:text-xs uppercase tracking-widest font-mono text-muted-foreground`}>
                 <div>#</div>
                 {hasHistory && <div />}
                 <div>Jugador</div>
-                <div className="text-right flex items-center justify-end gap-1">
-                  <TrendingUp className="w-3 h-3" />
-                  <span className="hidden sm:inline">Pts</span>
-                </div>
-                <div className="hidden sm:flex text-right items-center justify-end gap-1">
-                  <Target className="w-3 h-3" />
-                  <span className="hidden sm:inline">Exa</span>
-                </div>
-                <div className="hidden sm:flex text-right items-center justify-end gap-1">
-                  <Flame className="w-3 h-3" />
-                  <span className="hidden sm:inline">Rch</span>
-                </div>
+                <div className="text-right flex items-center justify-end gap-1"><TrendingUp className="w-3 h-3" /><span className="hidden sm:inline">Pts</span></div>
+                <div className="hidden sm:flex text-right items-center justify-end gap-1"><Target className="w-3 h-3" /><span className="hidden sm:inline">Exa</span></div>
+                <div className="hidden sm:flex text-right items-center justify-end gap-1"><Flame className="w-3 h-3" /><span className="hidden sm:inline">Rch</span></div>
               </div>
 
               {q.data.map((p, i) => {
@@ -347,9 +293,7 @@ function RankingPage() {
                     <div className={`font-display font-bold text-lg sm:text-xl ${medal} flex items-center gap-0.5`}>
                       {pos <= 3 ? <Medal className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> : null}{pos}
                     </div>
-                    {hasHistory && (
-                      <div className="flex items-center justify-center"><PositionDelta delta={delta} /></div>
-                    )}
+                    {hasHistory && <div className="flex items-center justify-center"><PositionDelta delta={delta} /></div>}
                     <div className="flex items-center gap-2 sm:gap-3 min-w-0">
                       <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center overflow-hidden shrink-0 ${isMe ? "ring-2 ring-primary bg-gradient-to-br from-primary to-secondary" : "bg-gradient-to-br from-primary to-secondary"}`}>
                         {p.avatar_url ? <img src={p.avatar_url} alt="" className="w-full h-full object-cover" /> : <span className="text-xs font-bold text-background">{initials}</span>}
@@ -367,18 +311,8 @@ function RankingPage() {
               })}
             </div>
 
-            {/* Gráfico F1 */}
-            {showChart && (
-              <div id="evolucion">
-                <EvolutionChart allHistory={enrichedHistory as any} />
-              </div>
-            )}
-
-            {!hasHistory && (
-              <p className="text-center text-xs text-muted-foreground mt-6 font-mono">
-                Las flechas y el gráfico aparecerán cuando el admin guarde el primer snapshot.
-              </p>
-            )}
+            {showChart && <div id="evolucion"><EvolutionChart allHistory={enrichedHistory as any} /></div>}
+            {!hasHistory && <p className="text-center text-xs text-muted-foreground mt-6 font-mono">Las flechas y el gráfico aparecerán cuando el admin guarde el primer snapshot.</p>}
           </>
         )}
       </main>
