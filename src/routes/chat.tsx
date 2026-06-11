@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Send, Pin, Trash2, Loader2, MessageCircle, LogIn, Reply, X } from "lucide-react";
+import { Send, Pin, Trash2, Loader2, MessageCircle, LogIn, Reply, X, Bell, BellOff } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -31,6 +31,55 @@ type Message = {
   reply_to?: { id: string; content: string; profile?: Profile } | null;
 };
 
+/* ─── SONIDO ─── */
+function playNotifSound() {
+  try {
+    const ctx = new AudioContext();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.setValueAtTime(880, ctx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.1);
+    g.gain.setValueAtTime(0.15, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+    o.start(ctx.currentTime);
+    o.stop(ctx.currentTime + 0.3);
+  } catch (_) { /* silencioso si falla */ }
+}
+
+/* ─── NOTIFICACIONES ─── */
+function useNotifications(userId: string | undefined) {
+  const [permission, setPermission] = useState<NotificationPermission>(
+    typeof Notification !== "undefined" ? Notification.permission : "default"
+  );
+
+  const requestPermission = useCallback(async () => {
+    if (typeof Notification === "undefined") return;
+    const result = await Notification.requestPermission();
+    setPermission(result);
+    if (result === "granted") toast.success("🔔 Notificaciones activadas");
+    else toast.error("Notificaciones bloqueadas en el browser");
+  }, []);
+
+  const notify = useCallback((msg: Message) => {
+    if (!userId || msg.user_id === userId) return; // no notificar los propios
+    playNotifSound();
+    if (permission === "granted" && document.visibilityState !== "visible") {
+      const name = msg.profile?.display_name ?? "Alguien";
+      const n = new Notification(`${name} en el chat 💬`, {
+        body: msg.content.slice(0, 80) + (msg.content.length > 80 ? "…" : ""),
+        icon: msg.profile?.avatar_url ?? "/favicon.ico",
+        tag: "dale-dale-chat",
+        silent: true, // ya reproducimos sonido propio
+      });
+      n.onclick = () => { window.focus(); n.close(); };
+      setTimeout(() => n.close(), 5000);
+    }
+  }, [userId, permission]);
+
+  return { permission, requestPermission, notify };
+}
+
 function formatTime(dateStr: string) {
   const d = new Date(dateStr);
   const now = new Date();
@@ -57,8 +106,7 @@ function Avatar({ profile, size = "sm" }: { profile?: Profile; size?: "sm" | "md
 
 function ReplyPreview({ msg, isOwn, onScrollTo }: {
   msg: { content: string; profile?: Profile } | null | undefined;
-  isOwn: boolean;
-  onScrollTo?: () => void;
+  isOwn: boolean; onScrollTo?: () => void;
 }) {
   if (!msg) return null;
   return (
@@ -75,26 +123,24 @@ function ReplyPreview({ msg, isOwn, onScrollTo }: {
   );
 }
 
-function ReactionTooltip({ reactions, emoji, userId }: {
-  reactions: Reaction[]; emoji: string; userId: string | undefined;
+function ReactionTooltip({ reactions, emoji, userId, onClick }: {
+  reactions: Reaction[]; emoji: string; userId: string | undefined; onClick: () => void;
 }) {
   const [show, setShow] = useState(false);
   const forEmoji = reactions.filter((r) => r.emoji === emoji);
-  const count = forEmoji.length;
   const isMine = forEmoji.some((r) => r.user_id === userId);
   const names = forEmoji.map((r) => r.profiles?.display_name ?? "").filter(Boolean);
-
   return (
     <div className="relative" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
-      <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full cursor-pointer transition ${
-        isMine ? "bg-primary/20 ring-1 ring-primary/40 text-primary" : "glass hover:bg-card"
-      }`}>
-        {emoji} <span className="font-mono">{count}</span>
-      </span>
+      <button onClick={onClick}
+        className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition ${
+          isMine ? "bg-primary/20 ring-1 ring-primary/40 text-primary" : "glass hover:bg-card"
+        }`}>
+        {emoji} <span className="font-mono">{forEmoji.length}</span>
+      </button>
       {show && names.length > 0 && (
         <div className="absolute bottom-full mb-1 left-0 z-30 glass-strong rounded-lg px-2.5 py-1.5 text-[11px] whitespace-nowrap shadow-glow pointer-events-none">
-          {names.slice(0, 5).join(", ")}
-          {names.length > 5 && ` y ${names.length - 5} más`}
+          {names.slice(0, 5).join(", ")}{names.length > 5 && ` y ${names.length - 5} más`}
         </div>
       )}
     </div>
@@ -110,6 +156,10 @@ function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const msgRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const isInitialLoad = useRef(true);
+  const lastMsgCount = useRef(0);
+
+  const { permission, requestPermission, notify } = useNotifications(user?.id);
 
   const messagesQ = useQuery({
     queryKey: ["chat-messages"],
@@ -125,21 +175,27 @@ function ChatPage() {
         .limit(200);
       if (error) throw error;
       const msgs = (data ?? []) as unknown as Message[];
-      // Enriquecer con datos del mensaje citado
       const msgMap = new Map(msgs.map((m) => [m.id, m]));
-      return msgs.map((m) => ({
-        ...m,
-        reply_to: m.reply_to_id ? msgMap.get(m.reply_to_id) ?? null : null,
-      }));
+      return msgs.map((m) => ({ ...m, reply_to: m.reply_to_id ? msgMap.get(m.reply_to_id) ?? null : null }));
     },
     enabled: !!user,
   });
 
+  // Realtime + notificaciones
   useEffect(() => {
     if (!user) return;
     const channel = supabase
       .channel("chat-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, () => {
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, async (payload) => {
+        // Fetch el mensaje nuevo con perfil para la notificación
+        if (!isInitialLoad.current) {
+          const { data } = await supabase
+            .from("messages")
+            .select("id, user_id, content, profile:profiles(id, display_name, avatar_url)")
+            .eq("id", payload.new.id)
+            .single();
+          if (data) notify(data as unknown as Message);
+        }
         qc.invalidateQueries({ queryKey: ["chat-messages"] });
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, () => {
@@ -147,25 +203,35 @@ function ChatPage() {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [user, qc]);
+  }, [user, qc, notify]);
 
+  // Marcar carga inicial como lista
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (messagesQ.data && isInitialLoad.current) {
+      lastMsgCount.current = messagesQ.data.length;
+      isInitialLoad.current = false;
+    }
+  }, [messagesQ.data]);
+
+  // Auto scroll solo en mensajes nuevos
+  useEffect(() => {
+    const count = messagesQ.data?.length ?? 0;
+    if (count > lastMsgCount.current) {
+      lastMsgCount.current = count;
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messagesQ.data?.length]);
 
   const sendMut = useMutation({
     mutationFn: async ({ content, replyToId }: { content: string; replyToId?: string }) => {
       if (!user) throw new Error("No autenticado");
       const { error } = await supabase.from("messages").insert({
-        user_id: user.id,
-        content: content.trim(),
-        reply_to_id: replyToId ?? null,
+        user_id: user.id, content: content.trim(), reply_to_id: replyToId ?? null,
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      setInput("");
-      setReplyingTo(null);
+      setInput(""); setReplyingTo(null);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
     },
     onError: (e: Error) => toast.error(e.message),
@@ -192,19 +258,11 @@ function ChatPage() {
   const reactionMut = useMutation({
     mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
       if (!user) return;
-      const existing = messagesQ.data
-        ?.find((m) => m.id === messageId)
-        ?.reactions?.find((r) => r.user_id === user.id && r.emoji === emoji);
-      if (existing) {
-        await supabase.from("message_reactions").delete().eq("id", existing.id);
-      } else {
-        await supabase.from("message_reactions").insert({ message_id: messageId, user_id: user.id, emoji });
-      }
+      const existing = messagesQ.data?.find((m) => m.id === messageId)?.reactions?.find((r) => r.user_id === user.id && r.emoji === emoji);
+      if (existing) await supabase.from("message_reactions").delete().eq("id", existing.id);
+      else await supabase.from("message_reactions").insert({ message_id: messageId, user_id: user.id, emoji });
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["chat-messages"] });
-      setShowEmojiPicker(null);
-    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["chat-messages"] }); setShowEmojiPicker(null); },
   });
 
   const handleSend = () => {
@@ -235,8 +293,7 @@ function ChatPage() {
     const isOwn = msg.user_id === user?.id;
     const isSameUser = prev?.user_id === msg.user_id;
     const isClose = prev ? new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() < 3 * 60 * 1000 : false;
-    const showHeader = !isSameUser || !isClose || !!msg.reply_to_id;
-    return { ...msg, isOwn, showHeader };
+    return { ...msg, isOwn, showHeader: !isSameUser || !isClose || !!msg.reply_to_id };
   }), [messages, user?.id]);
 
   if (!user) {
@@ -260,7 +317,6 @@ function ChatPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       <Navbar />
-
       <div className="fixed top-28 right-6 w-56 z-20 hidden xl:block">
         <Lightbox src={foto10} className="rounded-2xl overflow-hidden border-2 border-primary/30 shadow-glow rotate-3 hover:rotate-0 transition-transform duration-300" imgClassName="w-full h-auto" />
       </div>
@@ -276,9 +332,22 @@ function ChatPage() {
               <h1 className="font-display font-bold text-xl">Chat del grupo</h1>
               <p className="text-xs text-muted-foreground">{messages.length} mensajes · Solo para participantes</p>
             </div>
-            <div className="ml-auto flex items-center gap-1.5 glass rounded-xl px-3 py-1.5">
-              <div className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
-              <span className="text-xs font-mono text-muted-foreground">LIVE</span>
+            <div className="ml-auto flex items-center gap-2">
+              {/* Botón de notificaciones */}
+              <button
+                onClick={permission === "granted" ? undefined : requestPermission}
+                title={permission === "granted" ? "Notificaciones activas" : "Activar notificaciones"}
+                className={`w-9 h-9 rounded-xl flex items-center justify-center transition ${
+                  permission === "granted"
+                    ? "glass text-secondary cursor-default"
+                    : "glass text-muted-foreground hover:text-foreground hover:bg-card"
+                }`}>
+                {permission === "granted" ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+              </button>
+              <div className="flex items-center gap-1.5 glass rounded-xl px-3 py-1.5">
+                <div className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
+                <span className="text-xs font-mono text-muted-foreground">LIVE</span>
+              </div>
             </div>
           </div>
         </div>
@@ -310,24 +379,15 @@ function ChatPage() {
             </div>
           ) : (
             grouped.map((msg) => {
-              const reactionGroups = EMOJIS.map((emoji) => {
-                const users = msg.reactions?.filter((r) => r.emoji === emoji) ?? [];
-                return { emoji, count: users.length };
-              }).filter((r) => r.count > 0);
-
+              const reactionEmojis = EMOJIS.filter((emoji) =>
+                (msg.reactions ?? []).some((r) => r.emoji === emoji)
+              );
               return (
-                <div
-                  key={msg.id}
+                <div key={msg.id}
                   ref={(el) => { if (el) msgRefs.current.set(msg.id, el); else msgRefs.current.delete(msg.id); }}
-                  className={`group flex gap-2.5 transition-all rounded-xl ${msg.isOwn ? "flex-row-reverse" : "flex-row"} ${msg.showHeader ? "mt-4" : "mt-0.5"}`}
-                >
-                  {/* Avatar */}
-                  {msg.showHeader
-                    ? <Avatar profile={msg.profile as Profile} />
-                    : <div className="w-8 flex-shrink-0" />}
-
+                  className={`group flex gap-2.5 transition-all rounded-xl ${msg.isOwn ? "flex-row-reverse" : "flex-row"} ${msg.showHeader ? "mt-4" : "mt-0.5"}`}>
+                  {msg.showHeader ? <Avatar profile={msg.profile as Profile} /> : <div className="w-8 flex-shrink-0" />}
                   <div className={`flex flex-col max-w-[75%] ${msg.isOwn ? "items-end" : "items-start"}`}>
-                    {/* Nombre + hora */}
                     {msg.showHeader && (
                       <div className={`flex items-baseline gap-2 mb-1 ${msg.isOwn ? "flex-row-reverse" : "flex-row"}`}>
                         <span className="text-xs font-semibold truncate max-w-[120px]">
@@ -336,65 +396,39 @@ function ChatPage() {
                         <span className="text-[10px] text-muted-foreground">{formatTime(msg.created_at)}</span>
                       </div>
                     )}
-
-                    {/* Preview del mensaje citado */}
                     {msg.reply_to && (
-                      <ReplyPreview
-                        msg={msg.reply_to}
-                        isOwn={msg.isOwn}
-                        onScrollTo={() => scrollToMsg(msg.reply_to!.id)}
-                      />
+                      <ReplyPreview msg={msg.reply_to} isOwn={msg.isOwn} onScrollTo={() => scrollToMsg(msg.reply_to!.id)} />
                     )}
-
-                    {/* Burbuja */}
                     <div className="relative">
                       <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
-                        msg.isOwn
-                          ? "bg-gradient-to-br from-primary to-secondary text-background rounded-tr-sm"
-                          : "glass rounded-tl-sm"
+                        msg.isOwn ? "bg-gradient-to-br from-primary to-secondary text-background rounded-tr-sm" : "glass rounded-tl-sm"
                       } ${msg.pinned ? "ring-1 ring-gold/50" : ""}`}>
                         {msg.pinned && <Pin className="w-3 h-3 text-gold inline mr-1" />}
                         {msg.content}
                       </div>
-
                       {/* Acciones hover */}
                       <div className={`absolute top-0 ${msg.isOwn ? "left-0 -translate-x-full pr-1" : "right-0 translate-x-full pl-1"} opacity-0 group-hover:opacity-100 transition flex items-center gap-1`}>
-                        {/* Responder */}
-                        <button
-                          onClick={() => { setReplyingTo(msg); inputRef.current?.focus(); }}
-                          className="w-7 h-7 glass rounded-lg flex items-center justify-center hover:bg-card transition"
-                          title="Responder"
-                        >
+                        <button onClick={() => { setReplyingTo(msg); inputRef.current?.focus(); }}
+                          className="w-7 h-7 glass rounded-lg flex items-center justify-center hover:bg-card transition" title="Responder">
                           <Reply className="w-3.5 h-3.5" />
                         </button>
-                        {/* Reaccionar */}
-                        <button
-                          onClick={() => setShowEmojiPicker(showEmojiPicker === msg.id ? null : msg.id)}
-                          className="w-7 h-7 glass rounded-lg flex items-center justify-center text-xs hover:bg-card transition"
-                          title="Reaccionar"
-                        >
+                        <button onClick={() => setShowEmojiPicker(showEmojiPicker === msg.id ? null : msg.id)}
+                          className="w-7 h-7 glass rounded-lg flex items-center justify-center text-xs hover:bg-card transition" title="Reaccionar">
                           😊
                         </button>
                         {isAdmin && (
-                          <button
-                            onClick={() => pinMut.mutate({ id: msg.id, pinned: !msg.pinned })}
-                            className="w-7 h-7 glass rounded-lg flex items-center justify-center hover:bg-card transition"
-                            title={msg.pinned ? "Despinear" : "Pinear"}
-                          >
+                          <button onClick={() => pinMut.mutate({ id: msg.id, pinned: !msg.pinned })}
+                            className="w-7 h-7 glass rounded-lg flex items-center justify-center hover:bg-card transition" title={msg.pinned ? "Despinear" : "Pinear"}>
                             <Pin className="w-3.5 h-3.5 text-gold" />
                           </button>
                         )}
                         {(isAdmin || msg.user_id === user?.id) && (
-                          <button
-                            onClick={() => { if (confirm("¿Borrar este mensaje?")) deleteMut.mutate(msg.id); }}
-                            className="w-7 h-7 glass rounded-lg flex items-center justify-center hover:bg-destructive/20 hover:text-destructive transition"
-                            title="Borrar"
-                          >
+                          <button onClick={() => { if (confirm("¿Borrar este mensaje?")) deleteMut.mutate(msg.id); }}
+                            className="w-7 h-7 glass rounded-lg flex items-center justify-center hover:bg-destructive/20 hover:text-destructive transition" title="Borrar">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
                       </div>
-
                       {/* Emoji picker */}
                       {showEmojiPicker === msg.id && (
                         <div className={`absolute top-8 z-20 glass-strong rounded-xl p-1.5 flex gap-1 shadow-glow ${msg.isOwn ? "right-0" : "left-0"}`}>
@@ -407,18 +441,12 @@ function ChatPage() {
                         </div>
                       )}
                     </div>
-
                     {/* Reacciones con tooltip */}
-                    {reactionGroups.length > 0 && (
+                    {reactionEmojis.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {reactionGroups.map(({ emoji }) => (
-                          <div key={emoji} onClick={() => reactionMut.mutate({ messageId: msg.id, emoji })}>
-                            <ReactionTooltip
-                              reactions={msg.reactions ?? []}
-                              emoji={emoji}
-                              userId={user?.id}
-                            />
-                          </div>
+                        {reactionEmojis.map((emoji) => (
+                          <ReactionTooltip key={emoji} reactions={msg.reactions ?? []} emoji={emoji}
+                            userId={user?.id} onClick={() => reactionMut.mutate({ messageId: msg.id, emoji })} />
                         ))}
                       </div>
                     )}
@@ -432,7 +460,6 @@ function ChatPage() {
 
         {/* Input */}
         <div className="py-4 border-t border-border/50">
-          {/* Preview de respuesta */}
           {replyingTo && (
             <div className="flex items-center gap-2 glass rounded-xl px-3 py-2 mb-2 text-xs">
               <Reply className="w-3.5 h-3.5 text-primary flex-shrink-0" />
@@ -445,33 +472,23 @@ function ChatPage() {
               </button>
             </div>
           )}
-
           <div className="flex gap-3 items-end">
             <Avatar profile={profile as Profile | undefined} />
             <div className="flex-1 glass rounded-2xl px-4 py-3 flex flex-col gap-2">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
+              <textarea ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKey}
                 placeholder={replyingTo ? `Respondiendo a ${replyingTo.profile?.display_name ?? "—"}...` : "Escribí algo... (Enter para enviar)"}
-                rows={1}
-                maxLength={MAX_CHARS}
+                rows={1} maxLength={MAX_CHARS}
                 className="w-full bg-transparent resize-none text-sm focus:outline-none placeholder:text-muted-foreground/60 max-h-32"
-                style={{ fieldSizing: "content" } as React.CSSProperties}
-              />
+                style={{ fieldSizing: "content" } as React.CSSProperties} />
               {input.length > 400 && (
                 <div className="text-[10px] text-right font-mono text-muted-foreground">{input.length}/{MAX_CHARS}</div>
               )}
             </div>
-            <button
-              onClick={handleSend}
+            <button onClick={handleSend}
               disabled={!input.trim() || input.length > MAX_CHARS || sendMut.isPending}
-              className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-glow disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.05] active:scale-95 transition flex-shrink-0"
-            >
-              {sendMut.isPending
-                ? <Loader2 className="w-4 h-4 animate-spin text-background" />
-                : <Send className="w-4 h-4 text-background" />}
+              className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-glow disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.05] active:scale-95 transition flex-shrink-0">
+              {sendMut.isPending ? <Loader2 className="w-4 h-4 animate-spin text-background" /> : <Send className="w-4 h-4 text-background" />}
             </button>
           </div>
         </div>
