@@ -23,7 +23,7 @@ const EMOJIS = ["👍", "❤️", "😂", "🔥", "😮", "🎯", "💀"] as con
 const MAX_CHARS = 500;
 
 type Profile = { id: string; display_name: string; avatar_url: string | null; };
-type Reaction = { id: string; message_id: string; user_id: string; emoji: string; profiles?: { display_name: string } | null; };
+type Reaction = { id: string; message_id: string; user_id: string; emoji: string; };
 type Message = {
   id: string; user_id: string; content: string; pinned: boolean;
   created_at: string; reply_to_id: string | null;
@@ -44,7 +44,7 @@ function playNotifSound() {
     g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
     o.start(ctx.currentTime);
     o.stop(ctx.currentTime + 0.3);
-  } catch (_) { /* silencioso si falla */ }
+  } catch (_) {}
 }
 
 /* ─── NOTIFICACIONES ─── */
@@ -62,7 +62,7 @@ function useNotifications(userId: string | undefined) {
   }, []);
 
   const notify = useCallback((msg: Message) => {
-    if (!userId || msg.user_id === userId) return; // no notificar los propios
+    if (!userId || msg.user_id === userId) return;
     playNotifSound();
     if (permission === "granted" && document.visibilityState !== "visible") {
       const name = msg.profile?.display_name ?? "Alguien";
@@ -70,7 +70,7 @@ function useNotifications(userId: string | undefined) {
         body: msg.content.slice(0, 80) + (msg.content.length > 80 ? "…" : ""),
         icon: msg.profile?.avatar_url ?? "/favicon.ico",
         tag: "dale-dale-chat",
-        silent: true, // ya reproducimos sonido propio
+        silent: true,
       });
       n.onclick = () => { window.focus(); n.close(); };
       setTimeout(() => n.close(), 5000);
@@ -123,27 +123,16 @@ function ReplyPreview({ msg, isOwn, onScrollTo }: {
   );
 }
 
-function ReactionTooltip({ reactions, emoji, userId, onClick }: {
-  reactions: Reaction[]; emoji: string; userId: string | undefined; onClick: () => void;
+function ReactionBubble({ emoji, count, isMine, onClick }: {
+  emoji: string; count: number; isMine: boolean; onClick: () => void;
 }) {
-  const [show, setShow] = useState(false);
-  const forEmoji = reactions.filter((r) => r.emoji === emoji);
-  const isMine = forEmoji.some((r) => r.user_id === userId);
-  const names = forEmoji.map((r) => r.profiles?.display_name ?? "").filter(Boolean);
   return (
-    <div className="relative" onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
-      <button onClick={onClick}
-        className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition ${
-          isMine ? "bg-primary/20 ring-1 ring-primary/40 text-primary" : "glass hover:bg-card"
-        }`}>
-        {emoji} <span className="font-mono">{forEmoji.length}</span>
-      </button>
-      {show && names.length > 0 && (
-        <div className="absolute bottom-full mb-1 left-0 z-30 glass-strong rounded-lg px-2.5 py-1.5 text-[11px] whitespace-nowrap shadow-glow pointer-events-none">
-          {names.slice(0, 5).join(", ")}{names.length > 5 && ` y ${names.length - 5} más`}
-        </div>
-      )}
-    </div>
+    <button onClick={onClick}
+      className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition ${
+        isMine ? "bg-primary/20 ring-1 ring-primary/40 text-primary" : "glass hover:bg-card"
+      }`}>
+      {emoji} <span className="font-mono">{count}</span>
+    </button>
   );
 }
 
@@ -169,14 +158,17 @@ function ChatPage() {
         .select(`
           id, user_id, content, pinned, created_at, reply_to_id,
           profile:profiles(id, display_name, avatar_url),
-          reactions:message_reactions(id, message_id, user_id, emoji, profiles(display_name))
+          reactions:message_reactions(id, message_id, user_id, emoji)
         `)
         .order("created_at", { ascending: true })
         .limit(200);
       if (error) throw error;
       const msgs = (data ?? []) as unknown as Message[];
       const msgMap = new Map(msgs.map((m) => [m.id, m]));
-      return msgs.map((m) => ({ ...m, reply_to: m.reply_to_id ? msgMap.get(m.reply_to_id) ?? null : null }));
+      return msgs.map((m) => ({
+        ...m,
+        reply_to: m.reply_to_id ? msgMap.get(m.reply_to_id) ?? null : null,
+      }));
     },
     enabled: !!user,
   });
@@ -187,7 +179,6 @@ function ChatPage() {
     const channel = supabase
       .channel("chat-realtime")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, async (payload) => {
-        // Fetch el mensaje nuevo con perfil para la notificación
         if (!isInitialLoad.current) {
           const { data } = await supabase
             .from("messages")
@@ -205,7 +196,6 @@ function ChatPage() {
     return () => { supabase.removeChannel(channel); };
   }, [user, qc, notify]);
 
-  // Marcar carga inicial como lista
   useEffect(() => {
     if (messagesQ.data && isInitialLoad.current) {
       lastMsgCount.current = messagesQ.data.length;
@@ -213,7 +203,6 @@ function ChatPage() {
     }
   }, [messagesQ.data]);
 
-  // Auto scroll solo en mensajes nuevos
   useEffect(() => {
     const count = messagesQ.data?.length ?? 0;
     if (count > lastMsgCount.current) {
@@ -258,7 +247,9 @@ function ChatPage() {
   const reactionMut = useMutation({
     mutationFn: async ({ messageId, emoji }: { messageId: string; emoji: string }) => {
       if (!user) return;
-      const existing = messagesQ.data?.find((m) => m.id === messageId)?.reactions?.find((r) => r.user_id === user.id && r.emoji === emoji);
+      const existing = messagesQ.data
+        ?.find((m) => m.id === messageId)
+        ?.reactions?.find((r) => r.user_id === user.id && r.emoji === emoji);
       if (existing) await supabase.from("message_reactions").delete().eq("id", existing.id);
       else await supabase.from("message_reactions").insert({ message_id: messageId, user_id: user.id, emoji });
     },
@@ -292,7 +283,9 @@ function ChatPage() {
     const prev = messages[i - 1];
     const isOwn = msg.user_id === user?.id;
     const isSameUser = prev?.user_id === msg.user_id;
-    const isClose = prev ? new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() < 3 * 60 * 1000 : false;
+    const isClose = prev
+      ? new Date(msg.created_at).getTime() - new Date(prev.created_at).getTime() < 3 * 60 * 1000
+      : false;
     return { ...msg, isOwn, showHeader: !isSameUser || !isClose || !!msg.reply_to_id };
   }), [messages, user?.id]);
 
@@ -333,7 +326,6 @@ function ChatPage() {
               <p className="text-xs text-muted-foreground">{messages.length} mensajes · Solo para participantes</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
-              {/* Botón de notificaciones */}
               <button
                 onClick={permission === "granted" ? undefined : requestPermission}
                 title={permission === "granted" ? "Notificaciones activas" : "Activar notificaciones"}
@@ -361,7 +353,8 @@ function ChatPage() {
                 <span className="font-semibold text-foreground truncate">{m.profile?.display_name}:</span>
                 <span className="truncate">{m.content}</span>
                 {isAdmin && (
-                  <button onClick={() => pinMut.mutate({ id: m.id, pinned: false })} className="ml-auto text-muted-foreground hover:text-foreground">×</button>
+                  <button onClick={() => pinMut.mutate({ id: m.id, pinned: false })}
+                    className="ml-auto text-muted-foreground hover:text-foreground">×</button>
                 )}
               </div>
             ))}
@@ -371,7 +364,9 @@ function ChatPage() {
         {/* Lista de mensajes */}
         <div className="flex-1 overflow-y-auto py-4 space-y-1" style={{ minHeight: 0 }}>
           {messagesQ.isLoading ? (
-            <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
           ) : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
               <MessageCircle className="w-10 h-10 mb-3 opacity-40" />
@@ -379,14 +374,21 @@ function ChatPage() {
             </div>
           ) : (
             grouped.map((msg) => {
-              const reactionEmojis = EMOJIS.filter((emoji) =>
-                (msg.reactions ?? []).some((r) => r.emoji === emoji)
-              );
+              const reactionGroups = EMOJIS.map((emoji) => {
+                const users = msg.reactions?.filter((r) => r.emoji === emoji) ?? [];
+                const isMine = users.some((r) => r.user_id === user?.id);
+                return { emoji, count: users.length, isMine };
+              }).filter((r) => r.count > 0);
+
               return (
                 <div key={msg.id}
                   ref={(el) => { if (el) msgRefs.current.set(msg.id, el); else msgRefs.current.delete(msg.id); }}
                   className={`group flex gap-2.5 transition-all rounded-xl ${msg.isOwn ? "flex-row-reverse" : "flex-row"} ${msg.showHeader ? "mt-4" : "mt-0.5"}`}>
-                  {msg.showHeader ? <Avatar profile={msg.profile as Profile} /> : <div className="w-8 flex-shrink-0" />}
+
+                  {msg.showHeader
+                    ? <Avatar profile={msg.profile as Profile} />
+                    : <div className="w-8 flex-shrink-0" />}
+
                   <div className={`flex flex-col max-w-[75%] ${msg.isOwn ? "items-end" : "items-start"}`}>
                     {msg.showHeader && (
                       <div className={`flex items-baseline gap-2 mb-1 ${msg.isOwn ? "flex-row-reverse" : "flex-row"}`}>
@@ -396,16 +398,22 @@ function ChatPage() {
                         <span className="text-[10px] text-muted-foreground">{formatTime(msg.created_at)}</span>
                       </div>
                     )}
+
                     {msg.reply_to && (
-                      <ReplyPreview msg={msg.reply_to} isOwn={msg.isOwn} onScrollTo={() => scrollToMsg(msg.reply_to!.id)} />
+                      <ReplyPreview msg={msg.reply_to} isOwn={msg.isOwn}
+                        onScrollTo={() => scrollToMsg(msg.reply_to!.id)} />
                     )}
+
                     <div className="relative">
                       <div className={`px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words ${
-                        msg.isOwn ? "bg-gradient-to-br from-primary to-secondary text-background rounded-tr-sm" : "glass rounded-tl-sm"
+                        msg.isOwn
+                          ? "bg-gradient-to-br from-primary to-secondary text-background rounded-tr-sm"
+                          : "glass rounded-tl-sm"
                       } ${msg.pinned ? "ring-1 ring-gold/50" : ""}`}>
                         {msg.pinned && <Pin className="w-3 h-3 text-gold inline mr-1" />}
                         {msg.content}
                       </div>
+
                       {/* Acciones hover */}
                       <div className={`absolute top-0 ${msg.isOwn ? "left-0 -translate-x-full pr-1" : "right-0 translate-x-full pl-1"} opacity-0 group-hover:opacity-100 transition flex items-center gap-1`}>
                         <button onClick={() => { setReplyingTo(msg); inputRef.current?.focus(); }}
@@ -418,7 +426,8 @@ function ChatPage() {
                         </button>
                         {isAdmin && (
                           <button onClick={() => pinMut.mutate({ id: msg.id, pinned: !msg.pinned })}
-                            className="w-7 h-7 glass rounded-lg flex items-center justify-center hover:bg-card transition" title={msg.pinned ? "Despinear" : "Pinear"}>
+                            className="w-7 h-7 glass rounded-lg flex items-center justify-center hover:bg-card transition"
+                            title={msg.pinned ? "Despinear" : "Pinear"}>
                             <Pin className="w-3.5 h-3.5 text-gold" />
                           </button>
                         )}
@@ -429,6 +438,7 @@ function ChatPage() {
                           </button>
                         )}
                       </div>
+
                       {/* Emoji picker */}
                       {showEmojiPicker === msg.id && (
                         <div className={`absolute top-8 z-20 glass-strong rounded-xl p-1.5 flex gap-1 shadow-glow ${msg.isOwn ? "right-0" : "left-0"}`}>
@@ -441,12 +451,13 @@ function ChatPage() {
                         </div>
                       )}
                     </div>
-                    {/* Reacciones con tooltip */}
-                    {reactionEmojis.length > 0 && (
+
+                    {/* Reacciones */}
+                    {reactionGroups.length > 0 && (
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {reactionEmojis.map((emoji) => (
-                          <ReactionTooltip key={emoji} reactions={msg.reactions ?? []} emoji={emoji}
-                            userId={user?.id} onClick={() => reactionMut.mutate({ messageId: msg.id, emoji })} />
+                        {reactionGroups.map(({ emoji, count, isMine }) => (
+                          <ReactionBubble key={emoji} emoji={emoji} count={count} isMine={isMine}
+                            onClick={() => reactionMut.mutate({ messageId: msg.id, emoji })} />
                         ))}
                       </div>
                     )}
@@ -488,7 +499,9 @@ function ChatPage() {
             <button onClick={handleSend}
               disabled={!input.trim() || input.length > MAX_CHARS || sendMut.isPending}
               className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-glow disabled:opacity-40 disabled:cursor-not-allowed hover:scale-[1.05] active:scale-95 transition flex-shrink-0">
-              {sendMut.isPending ? <Loader2 className="w-4 h-4 animate-spin text-background" /> : <Send className="w-4 h-4 text-background" />}
+              {sendMut.isPending
+                ? <Loader2 className="w-4 h-4 animate-spin text-background" />
+                : <Send className="w-4 h-4 text-background" />}
             </button>
           </div>
         </div>
