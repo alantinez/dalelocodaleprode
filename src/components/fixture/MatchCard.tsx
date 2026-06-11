@@ -8,57 +8,30 @@ import { useAuth } from "@/hooks/use-auth";
 import { MatchCountdown } from "./MatchCountdown";
 import { formatKickoff } from "@/lib/prode/scoring";
 
-export type Team = {
-  id: string;
-  name: string;
-  code: string;
-  flag_url: string | null;
-};
-
+export type Team = { id: string; name: string; code: string; flag_url: string | null; };
 export type MatchWithTeams = {
-  id: string;
-  kickoff: string;
-  stage: string;
-  group: string | null;
-  venue: string | null;
-  status: string;
-  home_score: number | null;
-  away_score: number | null;
-  home: Team | null;
-  away: Team | null;
+  id: string; kickoff: string; stage: string; group: string | null;
+  venue: string | null; status: string; home_score: number | null; away_score: number | null;
+  home: Team | null; away: Team | null;
 };
-
 export type Prediction = {
-  match_id: string;
-  home_score: number;
-  away_score: number;
-  points: number;
-  is_exact: boolean;
+  match_id: string; home_score: number; away_score: number; points: number; is_exact: boolean;
 };
 
-type AllPrediction = {
-  home_score: number;
-  away_score: number;
-  points: number | null;
-  is_exact: boolean | null;
-  profiles: { display_name: string; avatar_url: string | null } | null;
-};
+type RawPred = { user_id: string; home_score: number; away_score: number; points: number | null; is_exact: boolean | null; };
+type ProfileMap = Map<string, { display_name: string; avatar_url: string | null }>;
 
 function Flag({ team }: { team: Team | null }) {
   return (
     <div className="w-10 h-10 rounded-full overflow-hidden ring-2 ring-border/60 bg-card flex items-center justify-center flex-shrink-0">
-      {team?.flag_url ? (
-        <img src={team.flag_url} alt={team?.name ?? ""} className="w-full h-full object-cover" />
-      ) : (
-        <span className="font-mono text-xs">{team?.code ?? "?"}</span>
-      )}
+      {team?.flag_url
+        ? <img src={team.flag_url} alt={team?.name ?? ""} className="w-full h-full object-cover" />
+        : <span className="font-mono text-xs">{team?.code ?? "?"}</span>}
     </div>
   );
 }
 
-function ScoreInput({ score, onInc, onDec, disabled }: {
-  score: number; onInc: () => void; onDec: () => void; disabled: boolean;
-}) {
+function ScoreInput({ score, onInc, onDec, disabled }: { score: number; onInc: () => void; onDec: () => void; disabled: boolean; }) {
   return (
     <div className="flex items-center gap-1.5">
       <button type="button" onClick={onDec} disabled={disabled || score <= 0}
@@ -78,17 +51,32 @@ function ScoreInput({ score, onInc, onDec, disabled }: {
 
 function AllPredictions({ matchId, finished }: { matchId: string; finished: boolean }) {
   const [open, setOpen] = useState(false);
+
   const { data, isLoading } = useQuery({
     queryKey: ["all-predictions", matchId],
     enabled: open,
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Fetch predictions (sin join a profiles)
+      const { data: preds, error } = await supabase
         .from("predictions")
-        .select("home_score, away_score, points, is_exact, profiles(display_name, avatar_url)")
+        .select("user_id, home_score, away_score, points, is_exact")
         .eq("match_id", matchId)
         .order("points", { ascending: false, nullsFirst: false });
       if (error) throw error;
-      return (data ?? []) as unknown as AllPrediction[];
+      if (!preds || preds.length === 0) return [];
+
+      // Fetch profiles por separado
+      const userIds = preds.map((p: RawPred) => p.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", userIds);
+
+      const profileMap: ProfileMap = new Map(
+        (profiles ?? []).map((p: any) => [p.id, { display_name: p.display_name, avatar_url: p.avatar_url }])
+      );
+
+      return (preds as RawPred[]).map((p) => ({ ...p, profile: profileMap.get(p.user_id) ?? null }));
     },
   });
 
@@ -97,14 +85,11 @@ function AllPredictions({ matchId, finished }: { matchId: string; finished: bool
       <div className="flex items-center justify-between">
         <button type="button" onClick={() => setOpen((v) => !v)}
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition">
-          <Users className="w-3.5 h-3.5" />Ver pronósticos
+          <Users className="w-3.5 h-3.5" /> Ver pronósticos
           {open ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
-        <Link
-          to="/partido/$matchId"
-          params={{ matchId }}
-          className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition font-medium"
-        >
+        <Link to="/partido/$matchId" params={{ matchId }}
+          className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition font-medium">
           Ver todo <ExternalLink className="w-3 h-3" />
         </Link>
       </div>
@@ -117,17 +102,17 @@ function AllPredictions({ matchId, finished }: { matchId: string; finished: bool
             <p className="text-xs text-muted-foreground text-center py-2">Nadie predijo este partido.</p>
           ) : (
             data.slice(0, 5).map((p, i) => {
-              const initials = p.profiles?.display_name?.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
+              const initials = p.profile?.display_name?.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
               const pts = p.points;
               const ptsColor = pts === null ? "text-muted-foreground" : p.is_exact ? "text-gold" : pts > 0 ? "text-secondary" : "text-destructive";
               return (
                 <div key={i} className="flex items-center gap-2 px-2 py-1.5 rounded-lg glass">
                   <div className="w-6 h-6 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden flex-shrink-0">
-                    {p.profiles?.avatar_url
-                      ? <img src={p.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                    {p.profile?.avatar_url
+                      ? <img src={p.profile.avatar_url} alt="" className="w-full h-full object-cover" />
                       : <span className="text-[8px] font-bold text-background">{initials}</span>}
                   </div>
-                  <span className="text-xs font-medium truncate flex-1">{p.profiles?.display_name ?? "—"}</span>
+                  <span className="text-xs font-medium truncate flex-1">{p.profile?.display_name ?? "—"}</span>
                   <span className="font-mono text-xs text-foreground font-bold">{p.home_score}-{p.away_score}</span>
                   {finished && pts !== null && (
                     <span className={`font-mono text-xs font-bold ${ptsColor} w-12 text-right`}>
@@ -139,7 +124,8 @@ function AllPredictions({ matchId, finished }: { matchId: string; finished: bool
             })
           )}
           {(data?.length ?? 0) > 5 && (
-            <Link to="/partido/$matchId" params={{ matchId }} className="block text-center text-xs text-primary hover:text-primary/80 transition py-1">
+            <Link to="/partido/$matchId" params={{ matchId }}
+              className="block text-center text-xs text-primary hover:text-primary/80 transition py-1">
               Ver los {data!.length} pronósticos →
             </Link>
           )}
@@ -193,19 +179,13 @@ export function MatchCard({ match, prediction }: { match: MatchWithTeams; predic
       <div className="flex items-center justify-between mb-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-2 min-w-0">
           {match.group && (
-            <span className="px-2 py-0.5 rounded-md bg-primary/15 text-primary font-mono font-bold flex-shrink-0">
-              Grupo {match.group}
-            </span>
+            <span className="px-2 py-0.5 rounded-md bg-primary/15 text-primary font-mono font-bold flex-shrink-0">Grupo {match.group}</span>
           )}
           <span className="font-mono truncate">{formatKickoff(kickoff)}</span>
         </div>
-        {finished ? (
-          <div className="inline-flex items-center gap-1.5 text-xs font-mono text-secondary flex-shrink-0">
-            <Trophy className="w-3 h-3" /> Final
-          </div>
-        ) : (
-          <div className="flex-shrink-0"><MatchCountdown kickoff={kickoff} /></div>
-        )}
+        {finished
+          ? <div className="inline-flex items-center gap-1.5 text-xs font-mono text-secondary flex-shrink-0"><Trophy className="w-3 h-3" /> Final</div>
+          : <div className="flex-shrink-0"><MatchCountdown kickoff={kickoff} /></div>}
       </div>
 
       {/* Teams */}
@@ -217,15 +197,9 @@ export function MatchCard({ match, prediction }: { match: MatchWithTeams; predic
             <div className="font-mono text-[10px] text-muted-foreground tracking-widest">{match.home?.code}</div>
           </div>
         </div>
-
-        {finished ? (
-          <div className="font-mono text-lg font-bold text-secondary flex-shrink-0 px-2">
-            {match.home_score}–{match.away_score}
-          </div>
-        ) : (
-          <span className="text-muted-foreground/50 text-xs font-mono flex-shrink-0">vs</span>
-        )}
-
+        {finished
+          ? <div className="font-mono text-lg font-bold text-secondary flex-shrink-0 px-2">{match.home_score}–{match.away_score}</div>
+          : <span className="text-muted-foreground/50 text-xs font-mono flex-shrink-0">vs</span>}
         <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
           <div className="min-w-0 text-right">
             <div className="font-display font-semibold text-sm leading-tight truncate">{match.away?.name ?? "—"}</div>
@@ -243,13 +217,11 @@ export function MatchCard({ match, prediction }: { match: MatchWithTeams; predic
           <ScoreInput score={away} onInc={() => setAway((s) => Math.min(20, s + 1))} onDec={() => setAway((s) => Math.max(0, s - 1))} disabled={false} />
         </div>
       )}
-
       {!locked && !canPredict && (
         <div className="flex items-center justify-center gap-1.5 text-xs text-gold font-mono px-3 py-2 glass rounded-xl mb-4 w-fit mx-auto">
           <Lock className="w-3.5 h-3.5" /> Confirmá tu pago
         </div>
       )}
-
       {locked && !finished && (
         <div className="flex justify-center mb-4">
           <div className="text-xs text-muted-foreground font-mono px-3 py-1.5 glass rounded-lg">
@@ -258,15 +230,12 @@ export function MatchCard({ match, prediction }: { match: MatchWithTeams; predic
         </div>
       )}
 
-      {/* Venue */}
       {match.venue && (
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground mb-3">
-          <MapPin className="w-3 h-3 flex-shrink-0" />
-          <span className="truncate">{match.venue}</span>
+          <MapPin className="w-3 h-3 flex-shrink-0" /><span className="truncate">{match.venue}</span>
         </div>
       )}
 
-      {/* Footer */}
       <div className="flex items-center justify-between gap-3">
         <div className="text-xs text-muted-foreground min-w-0">
           {prediction ? (
@@ -279,9 +248,7 @@ export function MatchCard({ match, prediction }: { match: MatchWithTeams; predic
                 </span>
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 text-secondary">
-                <Check className="w-3 h-3" /> Guardado
-              </span>
+              <span className="inline-flex items-center gap-1 text-secondary"><Check className="w-3 h-3" /> Guardado</span>
             )
           ) : (
             <span>{locked ? "" : canPredict ? "Cargá tu pronóstico" : ""}</span>
