@@ -1,9 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import {
-  ArrowLeft, MapPin, Trophy, Loader2, Target, Star,
-  TrendingUp, Users, Calendar,
-} from "lucide-react";
+import { ArrowLeft, MapPin, Trophy, Loader2, Target, Star, TrendingUp, Users, Calendar } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/landing/Navbar";
 import { formatKickoff } from "@/lib/prode/scoring";
@@ -14,26 +11,14 @@ export const Route = createFileRoute("/_authenticated/partido/$matchId")({
 });
 
 type MatchDetail = {
-  id: string;
-  kickoff: string;
-  stage: string;
-  group: string | null;
-  venue: string | null;
-  status: string;
-  home_score: number | null;
-  away_score: number | null;
+  id: string; kickoff: string; stage: string; group: string | null;
+  venue: string | null; status: string; home_score: number | null; away_score: number | null;
   home: { id: string; name: string; code: string; flag_url: string | null } | null;
   away: { id: string; name: string; code: string; flag_url: string | null } | null;
 };
 
-type PredictionRow = {
-  user_id: string;
-  home_score: number;
-  away_score: number;
-  points: number | null;
-  is_exact: boolean | null;
-  profiles: { display_name: string; avatar_url: string | null } | null;
-};
+type RawPred = { user_id: string; home_score: number; away_score: number; points: number | null; is_exact: boolean | null; };
+type PredictionRow = RawPred & { profile: { display_name: string; avatar_url: string | null } | null };
 
 function Flag({ team, size = "lg" }: { team: { name: string; code: string; flag_url: string | null } | null; size?: "sm" | "lg" }) {
   const cls = size === "lg" ? "w-16 h-16 sm:w-20 sm:h-20" : "w-8 h-8";
@@ -46,17 +31,13 @@ function Flag({ team, size = "lg" }: { team: { name: string; code: string; flag_
   );
 }
 
-function WinnerLabel({ homeGoals, awayGoals, homeName, awayName }: {
-  homeGoals: number; awayGoals: number; homeName: string; awayName: string;
-}) {
+function WinnerLabel({ homeGoals, awayGoals, homeName, awayName }: { homeGoals: number; awayGoals: number; homeName: string; awayName: string; }) {
   if (homeGoals > awayGoals) return <span className="text-secondary font-semibold">{homeName} ganó</span>;
   if (awayGoals > homeGoals) return <span className="text-secondary font-semibold">{awayName} ganó</span>;
   return <span className="text-gold font-semibold">Empate</span>;
 }
 
-function DistributionBar({ label, count, total, color }: {
-  label: string; count: number; total: number; color: string;
-}) {
+function DistributionBar({ label, count, total, color }: { label: string; count: number; total: number; color: string; }) {
   const pct = total === 0 ? 0 : Math.round((count / total) * 100);
   return (
     <div className="flex-1 min-w-0">
@@ -65,10 +46,8 @@ function DistributionBar({ label, count, total, color }: {
         <span className={`font-bold ${color} ml-2`}>{pct}%</span>
       </div>
       <div className="h-2 rounded-full bg-border/40 overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all duration-700 ${color === "text-primary" ? "bg-primary" : color === "text-secondary" ? "bg-secondary" : "bg-gold"}`}
-          style={{ width: `${pct}%` }}
-        />
+        <div className={`h-full rounded-full transition-all duration-700 ${color === "text-primary" ? "bg-primary" : color === "text-secondary" ? "bg-secondary" : "bg-gold"}`}
+          style={{ width: `${pct}%` }} />
       </div>
       <div className="text-[10px] text-muted-foreground mt-1">{count} {count === 1 ? "pronóstico" : "pronósticos"}</div>
     </div>
@@ -96,13 +75,28 @@ function PartidoPage() {
   const predsQ = useQuery({
     queryKey: ["match-predictions", matchId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Paso 1: predicciones sin join a profiles
+      const { data: preds, error } = await supabase
         .from("predictions")
-        .select("user_id, home_score, away_score, points, is_exact, profiles(display_name, avatar_url)")
+        .select("user_id, home_score, away_score, points, is_exact")
         .eq("match_id", matchId)
         .order("points", { ascending: false, nullsFirst: false });
       if (error) throw error;
-      return (data ?? []) as unknown as PredictionRow[];
+      if (!preds || preds.length === 0) return [];
+
+      // Paso 2: profiles por separado
+      const userIds = (preds as RawPred[]).map((p) => p.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .in("id", userIds);
+
+      const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, { display_name: p.display_name, avatar_url: p.avatar_url }]));
+
+      return (preds as RawPred[]).map((p): PredictionRow => ({
+        ...p,
+        profile: profileMap.get(p.user_id) ?? null,
+      }));
     },
   });
 
@@ -110,31 +104,22 @@ function PartidoPage() {
   const preds = predsQ.data ?? [];
   const finished = match?.status === "finished" && match?.home_score !== null;
   const kickoff = match ? new Date(match.kickoff) : null;
-  const locked = kickoff ? Date.now() >= kickoff.getTime() : false;
+  const locked = kickoff ? Date.now() >= kickoff.getTime() || match?.status !== "scheduled" : false;
 
-  // Distribution stats
   const total = preds.length;
   const homeWins = preds.filter((p) => p.home_score > p.away_score).length;
   const draws = preds.filter((p) => p.home_score === p.away_score).length;
   const awayWins = preds.filter((p) => p.away_score > p.home_score).length;
 
-  // Most predicted score
   const scoreMap = new Map<string, number>();
-  preds.forEach((p) => {
-    const k = `${p.home_score}-${p.away_score}`;
-    scoreMap.set(k, (scoreMap.get(k) ?? 0) + 1);
-  });
+  preds.forEach((p) => { const k = `${p.home_score}-${p.away_score}`; scoreMap.set(k, (scoreMap.get(k) ?? 0) + 1); });
   const topScore = [...scoreMap.entries()].sort((a, b) => b[1] - a[1])[0];
-
-  // Exact hits count
   const exactCount = preds.filter((p) => p.is_exact).length;
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="mx-auto max-w-3xl px-4 sm:px-6 pt-28 pb-20">
-
-        {/* Back */}
         <Link to="/fixture" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition mb-6">
           <ArrowLeft className="w-3.5 h-3.5" /> Volver al fixture
         </Link>
@@ -145,34 +130,22 @@ function PartidoPage() {
           <div className="text-center py-20 text-muted-foreground">Partido no encontrado.</div>
         ) : (
           <>
-            {/* Match header card */}
+            {/* Match header */}
             <div className="glass-strong rounded-3xl p-6 sm:p-8 mb-6 relative overflow-hidden">
               <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
               <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
 
-              {/* Group / stage badge */}
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-2">
-                  {match.group && (
-                    <span className="px-2.5 py-1 rounded-lg bg-primary/15 text-primary font-mono font-bold text-xs">
-                      Grupo {match.group}
-                    </span>
-                  )}
-                  {match.stage !== "group" && (
-                    <span className="px-2.5 py-1 rounded-lg bg-secondary/15 text-secondary font-mono font-bold text-xs capitalize">
-                      {match.stage}
-                    </span>
-                  )}
+                  {match.group && <span className="px-2.5 py-1 rounded-lg bg-primary/15 text-primary font-mono font-bold text-xs">Grupo {match.group}</span>}
+                  {match.stage !== "group" && <span className="px-2.5 py-1 rounded-lg bg-secondary/15 text-secondary font-mono font-bold text-xs capitalize">{match.stage}</span>}
                 </div>
                 {finished
                   ? <span className="inline-flex items-center gap-1.5 text-xs font-mono text-secondary"><Trophy className="w-3.5 h-3.5" /> Finalizado</span>
-                  : kickoff && <MatchCountdown kickoff={kickoff} />
-                }
+                  : kickoff && <MatchCountdown kickoff={kickoff} />}
               </div>
 
-              {/* Teams + score */}
               <div className="flex items-center justify-between gap-4">
-                {/* Home */}
                 <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
                   <Flag team={match.home} size="lg" />
                   <div className="text-center">
@@ -180,27 +153,16 @@ function PartidoPage() {
                     <div className="font-mono text-[10px] text-muted-foreground tracking-widest">{match.home?.code}</div>
                   </div>
                 </div>
-
-                {/* Score */}
                 <div className="flex flex-col items-center gap-1 flex-shrink-0">
                   {finished ? (
                     <>
-                      <div className="font-display font-black text-4xl sm:text-5xl text-secondary tabular-nums">
-                        {match.home_score} – {match.away_score}
-                      </div>
-                      <WinnerLabel
-                        homeGoals={match.home_score!}
-                        awayGoals={match.away_score!}
-                        homeName={match.home?.name ?? ""}
-                        awayName={match.away?.name ?? ""}
-                      />
+                      <div className="font-display font-black text-4xl sm:text-5xl text-secondary tabular-nums">{match.home_score} – {match.away_score}</div>
+                      <WinnerLabel homeGoals={match.home_score!} awayGoals={match.away_score!} homeName={match.home?.name ?? ""} awayName={match.away?.name ?? ""} />
                     </>
                   ) : (
                     <div className="font-display font-black text-3xl text-muted-foreground/40">vs</div>
                   )}
                 </div>
-
-                {/* Away */}
                 <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
                   <Flag team={match.away} size="lg" />
                   <div className="text-center">
@@ -210,46 +172,23 @@ function PartidoPage() {
                 </div>
               </div>
 
-              {/* Meta */}
               <div className="flex flex-wrap items-center justify-center gap-4 mt-6 text-xs text-muted-foreground">
-                {kickoff && (
-                  <span className="inline-flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5" />
-                    {formatKickoff(kickoff)}
-                  </span>
-                )}
-                {match.venue && (
-                  <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5" />
-                    {match.venue}
-                  </span>
-                )}
+                {kickoff && <span className="inline-flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" />{formatKickoff(kickoff)}</span>}
+                {match.venue && <span className="inline-flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" />{match.venue}</span>}
               </div>
             </div>
 
-            {/* Stats — solo visible después del kickoff */}
+            {/* Stats */}
             {locked && total > 0 && (
               <div className="glass-strong rounded-3xl p-6 mb-6">
                 <h2 className="font-display font-bold text-lg mb-5 flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-primary" /> Estadísticas del grupo
                 </h2>
-
                 <div className="flex gap-4 sm:gap-6 mb-6">
-                  <DistributionBar
-                    label={match.home?.name ?? "Local"}
-                    count={homeWins}
-                    total={total}
-                    color="text-primary"
-                  />
+                  <DistributionBar label={match.home?.name ?? "Local"} count={homeWins} total={total} color="text-primary" />
                   <DistributionBar label="Empate" count={draws} total={total} color="text-gold" />
-                  <DistributionBar
-                    label={match.away?.name ?? "Visitante"}
-                    count={awayWins}
-                    total={total}
-                    color="text-secondary"
-                  />
+                  <DistributionBar label={match.away?.name ?? "Visitante"} count={awayWins} total={total} color="text-secondary" />
                 </div>
-
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div className="glass rounded-xl p-3">
                     <div className="font-display font-bold text-xl text-primary">{total}</div>
@@ -271,52 +210,42 @@ function PartidoPage() {
               </div>
             )}
 
-            {/* Predictions table */}
+            {/* Tabla de predicciones */}
             {locked ? (
               <div className="glass-strong rounded-3xl overflow-hidden">
                 <div className="flex items-center gap-2 px-5 py-4 border-b border-border/50">
                   <Users className="w-4 h-4 text-primary" />
-                  <h2 className="font-display font-bold text-lg">
-                    Pronósticos{total > 0 ? ` · ${total}` : ""}
-                  </h2>
+                  <h2 className="font-display font-bold text-lg">Pronósticos{total > 0 ? ` · ${total}` : ""}</h2>
                 </div>
-
                 {predsQ.isLoading ? (
                   <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
                 ) : total === 0 ? (
                   <div className="text-center py-12 text-muted-foreground text-sm">Nadie predijo este partido.</div>
                 ) : (
                   <>
-                    {/* Header */}
                     <div className="grid grid-cols-[1fr_60px_80px] sm:grid-cols-[1fr_80px_100px] gap-3 px-5 py-2.5 text-[10px] font-mono uppercase tracking-widest text-muted-foreground border-b border-border/30">
                       <div>Jugador</div>
                       <div className="text-center">Pron.</div>
                       {finished && <div className="text-right flex items-center justify-end gap-1"><Star className="w-3 h-3" /> Pts</div>}
                     </div>
-
                     <div className="divide-y divide-border/20">
                       {preds.map((p, i) => {
-                        const initials = p.profiles?.display_name?.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
+                        const initials = p.profile?.display_name?.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
                         const pts = p.points;
                         const isExact = p.is_exact;
-                        const ptsColor = pts === null ? "text-muted-foreground"
-                          : isExact ? "text-gold"
-                          : pts > 0 ? "text-secondary"
-                          : "text-destructive";
+                        const ptsColor = pts === null ? "text-muted-foreground" : isExact ? "text-gold" : pts > 0 ? "text-secondary" : "text-destructive";
                         const rowBg = isExact ? "bg-gold/5" : pts !== null && pts > 0 ? "bg-secondary/5" : "";
                         return (
                           <div key={i} className={`grid grid-cols-[1fr_60px_80px] sm:grid-cols-[1fr_80px_100px] gap-3 px-5 py-3.5 items-center ${rowBg}`}>
                             <div className="flex items-center gap-3 min-w-0">
                               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden flex-shrink-0">
-                                {p.profiles?.avatar_url
-                                  ? <img src={p.profiles.avatar_url} alt="" className="w-full h-full object-cover" />
+                                {p.profile?.avatar_url
+                                  ? <img src={p.profile.avatar_url} alt="" className="w-full h-full object-cover" />
                                   : <span className="text-[10px] font-bold text-background">{initials}</span>}
                               </div>
-                              <span className="font-medium text-sm truncate">{p.profiles?.display_name ?? "—"}</span>
+                              <span className="font-medium text-sm truncate">{p.profile?.display_name ?? "—"}</span>
                             </div>
-                            <div className="text-center font-mono font-bold text-sm">
-                              {p.home_score}–{p.away_score}
-                            </div>
+                            <div className="text-center font-mono font-bold text-sm">{p.home_score}–{p.away_score}</div>
                             {finished && (
                               <div className={`text-right font-mono font-bold text-sm ${ptsColor}`}>
                                 {isExact && <span className="mr-1">⭐</span>}
