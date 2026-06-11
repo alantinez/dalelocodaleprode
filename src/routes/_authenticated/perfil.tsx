@@ -4,8 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "motion/react";
 import {
   Camera, LogOut, Trophy, Target, Flame, Loader2, Save,
-  TrendingUp, BarChart3, Medal, CheckCircle2, Clock, Percent,
-  History, Star, X, Check, ChevronDown, ChevronUp,
+  TrendingUp, BarChart3, Medal, Percent,
+  History, ChevronDown, ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,7 +14,6 @@ import { AchievementsGrid } from "@/components/achievements/AchievementsGrid";
 import { ChampionPicker } from "@/components/fixture/ChampionPicker";
 import foto8 from "@/assets/foto8.jpg";
 import { Lightbox } from "@/components/ui/Lightbox";
-import confetti from "canvas-confetti";
 
 export const Route = createFileRoute("/_authenticated/perfil")({
   component: PerfilPage,
@@ -94,30 +93,24 @@ function PredHistorySection({ userId }: { userId: string }) {
   });
 
   const tabs: { key: HistFilter; label: string; count?: number }[] = [
-    { key: "todos", label: "Todos", count: allPreds.length },
-    { key: "exactos", label: "⭐ Exactos", count: allPreds.filter((p) => p.is_exact).length },
-    { key: "correctos", label: "✓ Correctos", count: allPreds.filter((p) => p.matches?.status === "finished" && !p.is_exact && (p.points ?? 0) > 0).length },
-    { key: "fallados", label: "✗ Sin pts", count: allPreds.filter((p) => p.matches?.status === "finished" && (p.points ?? 0) === 0).length },
+    { key: "todos",      label: "Todos",        count: allPreds.length },
+    { key: "exactos",    label: "⭐ Exactos",   count: allPreds.filter((p) => p.is_exact).length },
+    { key: "correctos",  label: "✓ Correctos",  count: allPreds.filter((p) => p.matches?.status === "finished" && !p.is_exact && (p.points ?? 0) > 0).length },
+    { key: "fallados",   label: "✗ Sin pts",    count: allPreds.filter((p) => p.matches?.status === "finished" && (p.points ?? 0) === 0).length },
     { key: "pendientes", label: "⏳ Pendientes", count: allPreds.filter((p) => p.matches?.status !== "finished").length },
   ];
 
   return (
     <div className="glass-strong rounded-3xl p-6 sm:p-8 mt-6">
-      {/* Header */}
       <button onClick={() => setExpanded((v) => !v)} className="w-full flex items-center justify-between mb-1">
         <h2 className="font-display font-semibold text-lg flex items-center gap-2">
           <History className="w-4 h-4 text-primary" /> Mis pronósticos
         </h2>
         {expanded ? <ChevronUp className="w-4 h-4 text-muted-foreground" /> : <ChevronDown className="w-4 h-4 text-muted-foreground" />}
       </button>
-
-      {!expanded && (
-        <p className="text-xs text-muted-foreground">{allPreds.length} pronósticos · clickeá para ver</p>
-      )}
-
+      {!expanded && <p className="text-xs text-muted-foreground">{allPreds.length} pronósticos · clickeá para ver</p>}
       {expanded && (
         <>
-          {/* Filtros */}
           <div className="flex gap-2 flex-wrap mb-4 mt-4">
             {tabs.map((t) => (
               <button key={t.key} onClick={() => setFilter(t.key)}
@@ -128,7 +121,6 @@ function PredHistorySection({ userId }: { userId: string }) {
               </button>
             ))}
           </div>
-
           {q.isLoading ? (
             <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
           ) : filtered.length === 0 ? (
@@ -142,12 +134,9 @@ function PredHistorySection({ userId }: { userId: string }) {
                 const isExact = p.is_exact;
                 const hasPoints = (p.points ?? 0) > 0;
                 const pts = p.points;
-
                 const rowBg = isExact ? "border-gold/30 bg-gold/5" :
                   finished && hasPoints ? "border-secondary/20 bg-secondary/5" :
-                  finished && !hasPoints ? "border-destructive/20" :
-                  "border-border/30";
-
+                  finished && !hasPoints ? "border-destructive/20" : "border-border/30";
                 const ptsBadge = isExact
                   ? <span className="text-[10px] font-mono font-bold text-gold px-2 py-0.5 rounded-full bg-gold/15">⭐ +{pts}</span>
                   : finished && hasPoints
@@ -155,16 +144,12 @@ function PredHistorySection({ userId }: { userId: string }) {
                   : finished
                   ? <span className="text-[10px] font-mono font-bold text-destructive px-2 py-0.5 rounded-full bg-destructive/10">✗ 0</span>
                   : <span className="text-[10px] font-mono text-muted-foreground px-2 py-0.5 rounded-full glass">⏳</span>;
-
                 return (
                   <div key={p.match_id} className={`flex items-center gap-3 p-3 rounded-xl border transition hover:bg-card/40 ${rowBg}`}>
-                    {/* Equipos */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 mb-1 flex-wrap">
                         {m.group && <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-primary/15 text-primary">G{m.group}</span>}
-                        <span className="text-[10px] text-muted-foreground font-mono">
-                          {kickoff.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
-                        </span>
+                        <span className="text-[10px] text-muted-foreground font-mono">{kickoff.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}</span>
                       </div>
                       <div className="flex items-center gap-1.5 text-xs font-medium">
                         {m.home?.flag_url && <img src={m.home.flag_url} alt="" className="w-4 h-4 rounded-full object-cover" />}
@@ -174,24 +159,16 @@ function PredHistorySection({ userId }: { userId: string }) {
                         <span className="truncate max-w-[70px] sm:max-w-none">{m.away?.name}</span>
                       </div>
                     </div>
-
-                    {/* Tu pronóstico */}
                     <div className="text-center flex-shrink-0">
                       <div className="text-[9px] text-muted-foreground mb-0.5 font-mono">TU PRON.</div>
-                      <div className={`font-mono font-bold text-sm ${isExact ? "text-gold" : hasPoints && finished ? "text-secondary" : "text-foreground"}`}>
-                        {p.home_score}–{p.away_score}
-                      </div>
+                      <div className={`font-mono font-bold text-sm ${isExact ? "text-gold" : hasPoints && finished ? "text-secondary" : "text-foreground"}`}>{p.home_score}–{p.away_score}</div>
                     </div>
-
-                    {/* Resultado real */}
                     {finished && (
                       <div className="text-center flex-shrink-0">
                         <div className="text-[9px] text-muted-foreground mb-0.5 font-mono">RESULTADO</div>
                         <div className="font-mono font-bold text-sm text-foreground">{m.home_score}–{m.away_score}</div>
                       </div>
                     )}
-
-                    {/* Puntos */}
                     <div className="flex-shrink-0">{ptsBadge}</div>
                   </div>
                 );
@@ -211,6 +188,7 @@ function PerfilPage() {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // ── Queries ──
   const rankingQ = useQuery({
     queryKey: ["user-ranking-position", user?.id],
     enabled: !!user?.id,
@@ -247,23 +225,26 @@ function PerfilPage() {
     refetchInterval: 60_000,
   });
 
-  if (!user || !profile) return null;
-
-  // Confetti al detectar exactos nuevos ⭐
+  // ── Confetti — ANTES del early return ──
   useEffect(() => {
     if (!profile?.exact_hits || profile.exact_hits === 0 || !user?.id) return;
     const key = `confetti_${user.id}`;
     const lastShown = parseInt(localStorage.getItem(key) ?? "0");
     if (profile.exact_hits > lastShown) {
-      setTimeout(() => {
-        confetti({ particleCount: 120, spread: 80, origin: { y: 0.55 }, colors: ["#FFD700","#00D2BE","#a855f7","#ec4899","#22c55e"] });
-        setTimeout(() => confetti({ particleCount: 60, spread: 120, origin: { y: 0.4 }, angle: 60, colors: ["#FFD700","#00D2BE"] }), 300);
-        setTimeout(() => confetti({ particleCount: 60, spread: 120, origin: { y: 0.4 }, angle: 120, colors: ["#a855f7","#ec4899"] }), 400);
-      }, 600);
+      import("canvas-confetti").then((mod) => {
+        const confetti = mod.default;
+        setTimeout(() => {
+          confetti({ particleCount: 120, spread: 80, origin: { y: 0.55 }, colors: ["#FFD700","#00D2BE","#a855f7","#ec4899","#22c55e"] });
+          setTimeout(() => confetti({ particleCount: 60, spread: 120, origin: { y: 0.4 }, angle: 60, colors: ["#FFD700","#00D2BE"] }), 300);
+          setTimeout(() => confetti({ particleCount: 60, spread: 120, origin: { y: 0.4 }, angle: 120, colors: ["#a855f7","#ec4899"] }), 400);
+        }, 600);
+      }).catch(() => {/* canvas-confetti no instalado, no pasa nada */});
       localStorage.setItem(key, String(profile.exact_hits));
     }
   }, [profile?.exact_hits, user?.id]);
 
+  // ── Early return DESPUÉS de todos los hooks ──
+  if (!user || !profile) return null;
 
   const initials = profile.display_name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
   const stats = predsQ.data;
@@ -299,7 +280,6 @@ function PerfilPage() {
   return (
     <div className="mx-auto max-w-4xl px-4 sm:px-6">
 
-      {/* Card principal */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         className="glass-strong rounded-3xl p-6 sm:p-10 relative overflow-hidden">
         <div className="absolute -top-24 -right-24 w-64 h-64 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
@@ -354,7 +334,6 @@ function PerfilPage() {
         )}
       </motion.div>
 
-      {/* Estilo de juego */}
       {stats && stats.total > 0 && (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
           className="glass-strong rounded-3xl p-6 sm:p-8 mt-6">
@@ -363,9 +342,9 @@ function PerfilPage() {
           </h2>
           <div className="grid sm:grid-cols-3 gap-4 mb-5">
             {[
-              { label: "Local gana", count: stats.homeWins, color: "bg-primary", pct: Math.round(stats.homeWins / stats.total * 100) },
-              { label: "Empate", count: stats.draws, color: "bg-gold", pct: Math.round(stats.draws / stats.total * 100) },
-              { label: "Visitante gana", count: stats.awayWins, color: "bg-secondary", pct: Math.round(stats.awayWins / stats.total * 100) },
+              { label: "Local gana",      count: stats.homeWins, color: "bg-primary",   pct: Math.round(stats.homeWins / stats.total * 100) },
+              { label: "Empate",          count: stats.draws,    color: "bg-gold",       pct: Math.round(stats.draws    / stats.total * 100) },
+              { label: "Visitante gana",  count: stats.awayWins, color: "bg-secondary",  pct: Math.round(stats.awayWins / stats.total * 100) },
             ].map((item) => (
               <div key={item.label}>
                 <div className="flex items-center justify-between mb-1.5 text-xs font-mono">
@@ -388,17 +367,14 @@ function PerfilPage() {
         </motion.div>
       )}
 
-      {/* Campeón */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className="mt-6">
         <ChampionPicker />
       </motion.div>
 
-      {/* Historial de pronósticos */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
         <PredHistorySection userId={user.id} />
       </motion.div>
 
-      {/* Datos + foto */}
       <div className="flex gap-4 items-start mt-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
           className="flex-1 glass-strong rounded-3xl p-6 sm:p-8">
@@ -423,7 +399,6 @@ function PerfilPage() {
         </motion.div>
       </div>
 
-      {/* Logros */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
         className="glass-strong rounded-3xl p-6 sm:p-8 mt-6 mb-6">
         <AchievementsGrid userId={user.id} />
