@@ -1,0 +1,19 @@
+name: Auto-load World Cup Results
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'   # cada 20 minutos
+  workflow_dispatch:           # trigger manual desde GitHub UI
+
+jobs:
+  load-results:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Load results
+        env:
+          SUPABASE_URL: https://mhplzwvisroexpjfdmqt.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node .github/scripts/load-results.mjs
