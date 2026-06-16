@@ -2,7 +2,7 @@ name: Auto-load World Cup Results
 
 on:
   schedule:
-    - cron: '*/20 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -23,6 +23,7 @@ jobs:
             'Mexico':'MEX','South Africa':'RSA','South Korea':'KOR',
             'Czech Republic':'CZE','Czechia':'CZE',
             'Bosnia and Herzegovina':'BIH','Bosnia-Herzegovina':'BIH',
+            'Bosnia & Herzegovina':'BIH','Bosnia & Herzegowina':'BIH',
             'Canada':'CAN','Qatar':'QAT','Switzerland':'SUI',
             'Brazil':'BRA','Scotland':'SCO','Haiti':'HAI','Morocco':'MAR',
             'Australia':'AUS','United States':'USA','USA':'USA',
