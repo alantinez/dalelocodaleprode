@@ -2,18 +2,74 @@ name: Auto-load World Cup Results
 
 on:
   schedule:
-    - cron: '*/20 * * * *'   # cada 20 minutos
-  workflow_dispatch:           # trigger manual desde GitHub UI
+    - cron: '*/20 * * * *'
+  workflow_dispatch:
 
 jobs:
   load-results:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
       - name: Load results
         env:
           SUPABASE_URL: https://mhplzwvisroexpjfdmqt.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node .github/scripts/load-results.mjs
+        run: |
+          node << 'EOF'
+          const SUPABASE_URL = process.env.SUPABASE_URL;
+          const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+          const URL = 'https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json';
+
+          const NAME_TO_CODE = {
+            'Mexico':'MEX','South Africa':'RSA','South Korea':'KOR',
+            'Czech Republic':'CZE','Czechia':'CZE',
+            'Bosnia and Herzegovina':'BIH','Bosnia-Herzegovina':'BIH',
+            'Canada':'CAN','Qatar':'QAT','Switzerland':'SUI',
+            'Brazil':'BRA','Scotland':'SCO','Haiti':'HAI','Morocco':'MAR',
+            'Australia':'AUS','United States':'USA','USA':'USA',
+            'Paraguay':'PAR','Turkey':'TUR','Türkiye':'TUR','Germany':'GER',
+            'Ivory Coast':'CIV',"Côte d'Ivoire":'CIV','Curaçao':'CUW',
+            'Ecuador':'ECU','Japan':'JPN','Netherlands':'NED','Sweden':'SWE',
+            'Tunisia':'TUN','Belgium':'BEL','Egypt':'EGY','Iran':'IRN',
+            'New Zealand':'NZL','Saudi Arabia':'KSA','Cape Verde':'CPV',
+            'Spain':'ESP','Uruguay':'URU','France':'FRA','Iraq':'IRQ',
+            'Norway':'NOR','Senegal':'SEN','Algeria':'ALG','Argentina':'ARG',
+            'Austria':'AUT','Jordan':'JOR','Colombia':'COL','Portugal':'POR',
+            'Congo DR':'COD','DR Congo':'COD','Uzbekistan':'UZB',
+            'Croatia':'CRO','Ghana':'GHA','England':'ENG','Panama':'PAN',
+          };
+
+          async function rpc(fn, body) {
+            const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${SERVICE_KEY}`,
+                'apikey': SERVICE_KEY,
+              },
+              body: JSON.stringify(body),
+            });
+            return { ok: res.ok, status: res.status, text: await res.text() };
+          }
+
+          const res = await fetch(URL);
+          if (!res.ok) { console.error('Failed:', res.status); process.exit(1); }
+          const data = await res.json();
+          const finished = (data.matches ?? []).filter(m => m.score?.ft);
+          console.log(`Found ${finished.length} finished matches`);
+
+          let saved = 0, skipped = 0, errors = 0;
+          for (const m of finished) {
+            const hc = NAME_TO_CODE[m.team1];
+            const ac = NAME_TO_CODE[m.team2];
+            if (!hc || !ac) { console.warn(`Unknown: "${m.team1}" or "${m.team2}"`); continue; }
+            const r = await rpc('auto_save_result_service', {
+              p_home_code: hc, p_away_code: ac,
+              p_home_score: m.score.ft[0], p_away_score: m.score.ft[1],
+            });
+            if (!r.ok) { console.error(`Error ${hc} vs ${ac}:`, r.text); errors++; }
+            else if (r.text.includes('ALREADY') || r.text.includes('NOT_FOUND')) { skipped++; }
+            else { console.log(`Saved: ${m.team1} ${m.score.ft[0]}-${m.score.ft[1]} ${m.team2}`); saved++; }
+          }
+          console.log(`Done: saved=${saved} skipped=${skipped} errors=${errors}`);
+          if (saved > 0) { await rpc('unlock_achievements_all', {}); console.log('Logros recalculados'); }
+          EOF
