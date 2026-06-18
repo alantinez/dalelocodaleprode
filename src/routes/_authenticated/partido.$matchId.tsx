@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, MapPin, Trophy, Loader2, Target, Star, TrendingUp, Users, Calendar } from "lucide-react";
+import { ArrowLeft, MapPin, Trophy, Loader2, Target, Star, TrendingUp, Users, Calendar, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/landing/Navbar";
 import { formatKickoff } from "@/lib/prode/scoring";
@@ -19,6 +19,7 @@ type MatchDetail = {
 
 type RawPred = { user_id: string; home_score: number; away_score: number; points: number | null; is_exact: boolean | null; };
 type PredictionRow = RawPred & { profile: { display_name: string; avatar_url: string | null } | null };
+type ProfileRow = { id: string; display_name: string; avatar_url: string | null };
 
 function Flag({ team, size = "lg" }: { team: { name: string; code: string; flag_url: string | null } | null; size?: "sm" | "lg" }) {
   const cls = size === "lg" ? "w-16 h-16 sm:w-20 sm:h-20" : "w-8 h-8";
@@ -54,6 +55,18 @@ function DistributionBar({ label, count, total, color }: { label: string; count:
   );
 }
 
+function Avatar({ profile, size = "sm" }: { profile: { display_name: string; avatar_url: string | null } | null; size?: "sm" | "md" }) {
+  const initials = profile?.display_name?.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
+  const cls = size === "sm" ? "w-8 h-8 text-[10px]" : "w-10 h-10 text-xs";
+  return (
+    <div className={`${cls} rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden flex-shrink-0`}>
+      {profile?.avatar_url
+        ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+        : <span className="font-bold text-background">{initials}</span>}
+    </div>
+  );
+}
+
 function PartidoPage() {
   const { matchId } = Route.useParams();
 
@@ -75,7 +88,6 @@ function PartidoPage() {
   const predsQ = useQuery({
     queryKey: ["match-predictions", matchId],
     queryFn: async () => {
-      // Paso 1: predicciones sin join a profiles
       const { data: preds, error } = await supabase
         .from("predictions")
         .select("user_id, home_score, away_score, points, is_exact")
@@ -84,7 +96,6 @@ function PartidoPage() {
       if (error) throw error;
       if (!preds || preds.length === 0) return [];
 
-      // Paso 2: profiles por separado
       const userIds = (preds as RawPred[]).map((p) => p.user_id);
       const { data: profiles } = await supabase
         .from("profiles")
@@ -100,11 +111,30 @@ function PartidoPage() {
     },
   });
 
+  // Todos los participantes pagados
+  const paidQ = useQuery({
+    queryKey: ["paid-profiles"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, display_name, avatar_url")
+        .eq("paid", true)
+        .order("display_name");
+      if (error) throw error;
+      return (data ?? []) as ProfileRow[];
+    },
+  });
+
   const match = matchQ.data;
   const preds = predsQ.data ?? [];
+  const allPaid = paidQ.data ?? [];
   const finished = match?.status === "finished" && match?.home_score !== null;
   const kickoff = match ? new Date(match.kickoff) : null;
   const locked = kickoff ? Date.now() >= kickoff.getTime() || match?.status !== "scheduled" : false;
+
+  // Quiénes NO predijeron
+  const predictorIds = new Set(preds.map((p) => p.user_id));
+  const nonPredictors = allPaid.filter((p) => !predictorIds.has(p.id));
 
   const total = preds.length;
   const homeWins = preds.filter((p) => p.home_score > p.away_score).length;
@@ -192,7 +222,7 @@ function PartidoPage() {
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div className="glass rounded-xl p-3">
                     <div className="font-display font-bold text-xl text-primary">{total}</div>
-                    <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-0.5">Predicciones</div>
+                    <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-0.5">Predijeron</div>
                   </div>
                   {topScore && (
                     <div className="glass rounded-xl p-3">
@@ -200,12 +230,17 @@ function PartidoPage() {
                       <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-0.5">Más votado</div>
                     </div>
                   )}
-                  {finished && (
+                  {finished ? (
                     <div className="glass rounded-xl p-3">
                       <div className="font-display font-bold text-xl text-secondary">{exactCount}</div>
                       <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-0.5">Exactos ⭐</div>
                     </div>
-                  )}
+                  ) : nonPredictors.length > 0 ? (
+                    <div className="glass rounded-xl p-3 border border-destructive/20">
+                      <div className="font-display font-bold text-xl text-destructive">{nonPredictors.length}</div>
+                      <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-0.5">Sin pronóstico</div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             )}
@@ -213,24 +248,36 @@ function PartidoPage() {
             {/* Tabla de predicciones */}
             {locked ? (
               <div className="glass-strong rounded-3xl overflow-hidden">
-                <div className="flex items-center gap-2 px-5 py-4 border-b border-border/50">
-                  <Users className="w-4 h-4 text-primary" />
-                  <h2 className="font-display font-bold text-lg">Pronósticos{total > 0 ? ` · ${total}` : ""}</h2>
+                <div className="flex items-center justify-between gap-2 px-5 py-4 border-b border-border/50">
+                  <div className="flex items-center gap-2">
+                    <Users className="w-4 h-4 text-primary" />
+                    <h2 className="font-display font-bold text-lg">
+                      Pronósticos{total > 0 ? ` · ${total}` : ""}
+                    </h2>
+                  </div>
+                  {nonPredictors.length > 0 && (
+                    <span className="text-xs font-mono text-destructive flex items-center gap-1">
+                      <XCircle className="w-3.5 h-3.5" /> {nonPredictors.length} no predijo
+                    </span>
+                  )}
                 </div>
+
                 {predsQ.isLoading ? (
                   <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-                ) : total === 0 ? (
+                ) : total === 0 && nonPredictors.length === 0 ? (
                   <div className="text-center py-12 text-muted-foreground text-sm">Nadie predijo este partido.</div>
                 ) : (
                   <>
+                    {/* Header */}
                     <div className="grid grid-cols-[1fr_60px_80px] sm:grid-cols-[1fr_80px_100px] gap-3 px-5 py-2.5 text-[10px] font-mono uppercase tracking-widest text-muted-foreground border-b border-border/30">
                       <div>Jugador</div>
                       <div className="text-center">Pron.</div>
                       {finished && <div className="text-right flex items-center justify-end gap-1"><Star className="w-3 h-3" /> Pts</div>}
                     </div>
+
                     <div className="divide-y divide-border/20">
+                      {/* Quienes SÍ predijeron */}
                       {preds.map((p, i) => {
-                        const initials = p.profile?.display_name?.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
                         const pts = p.points;
                         const isExact = p.is_exact;
                         const ptsColor = pts === null ? "text-muted-foreground" : isExact ? "text-gold" : pts > 0 ? "text-secondary" : "text-destructive";
@@ -238,11 +285,7 @@ function PartidoPage() {
                         return (
                           <div key={i} className={`grid grid-cols-[1fr_60px_80px] sm:grid-cols-[1fr_80px_100px] gap-3 px-5 py-3.5 items-center ${rowBg}`}>
                             <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden flex-shrink-0">
-                                {p.profile?.avatar_url
-                                  ? <img src={p.profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                                  : <span className="text-[10px] font-bold text-background">{initials}</span>}
-                              </div>
+                              <Avatar profile={p.profile} />
                               <span className="font-medium text-sm truncate">{p.profile?.display_name ?? "—"}</span>
                             </div>
                             <div className="text-center font-mono font-bold text-sm">{p.home_score}–{p.away_score}</div>
@@ -255,6 +298,33 @@ function PartidoPage() {
                           </div>
                         );
                       })}
+
+                      {/* Quienes NO predijeron */}
+                      {nonPredictors.length > 0 && (
+                        <>
+                          <div className="px-5 py-2 bg-destructive/5 border-t border-destructive/10">
+                            <span className="text-[10px] font-mono uppercase tracking-widest text-destructive/70 flex items-center gap-1.5">
+                              <XCircle className="w-3 h-3" /> No predijeron este partido
+                            </span>
+                          </div>
+                          {nonPredictors.map((p) => (
+                            <div key={p.id} className="grid grid-cols-[1fr_60px_80px] sm:grid-cols-[1fr_80px_100px] gap-3 px-5 py-3 items-center opacity-50">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-8 h-8 rounded-lg bg-border/40 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                  {p.avatar_url
+                                    ? <img src={p.avatar_url} alt="" className="w-full h-full object-cover grayscale" />
+                                    : <span className="text-[10px] font-bold text-muted-foreground">
+                                        {p.display_name?.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase()}
+                                      </span>}
+                                </div>
+                                <span className="font-medium text-sm truncate text-muted-foreground">{p.display_name}</span>
+                              </div>
+                              <div className="text-center font-mono text-xs text-muted-foreground/60">—</div>
+                              {finished && <div className="text-right font-mono text-xs text-destructive/60">0</div>}
+                            </div>
+                          ))}
+                        </>
+                      )}
                     </div>
                   </>
                 )}
