@@ -16,7 +16,6 @@ type MatchDetail = {
   home: { id: string; name: string; code: string; flag_url: string | null } | null;
   away: { id: string; name: string; code: string; flag_url: string | null } | null;
 };
-
 type RawPred = { user_id: string; home_score: number; away_score: number; points: number | null; is_exact: boolean | null; };
 type PredictionRow = RawPred & { profile: { display_name: string; avatar_url: string | null } | null };
 type ProfileRow = { id: string; display_name: string; avatar_url: string | null };
@@ -25,8 +24,7 @@ function Flag({ team, size = "lg" }: { team: { name: string; code: string; flag_
   const cls = size === "lg" ? "w-16 h-16 sm:w-20 sm:h-20" : "w-8 h-8";
   return (
     <div className={`${cls} rounded-full overflow-hidden ring-2 ring-border/60 bg-card flex items-center justify-center flex-shrink-0`}>
-      {team?.flag_url
-        ? <img src={team.flag_url} alt={team.name} className="w-full h-full object-cover" />
+      {team?.flag_url ? <img src={team.flag_url} alt={team.name} className="w-full h-full object-cover" />
         : <span className="font-mono text-xs">{team?.code ?? "?"}</span>}
     </div>
   );
@@ -55,14 +53,12 @@ function DistributionBar({ label, count, total, color }: { label: string; count:
   );
 }
 
-function Avatar({ profile, size = "sm" }: { profile: { display_name: string; avatar_url: string | null } | null; size?: "sm" | "md" }) {
-  const initials = profile?.display_name?.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
-  const cls = size === "sm" ? "w-8 h-8 text-[10px]" : "w-10 h-10 text-xs";
+function Avatar({ p }: { p: { display_name?: string | null; avatar_url?: string | null } | null }) {
+  const initials = p?.display_name?.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
   return (
-    <div className={`${cls} rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden flex-shrink-0`}>
-      {profile?.avatar_url
-        ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-        : <span className="font-bold text-background">{initials}</span>}
+    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden flex-shrink-0">
+      {p?.avatar_url ? <img src={p.avatar_url} alt="" className="w-full h-full object-cover" />
+        : <span className="text-[10px] font-bold text-background">{initials}</span>}
     </div>
   );
 }
@@ -78,8 +74,7 @@ function PartidoPage() {
         .select(`id, kickoff, stage, group, venue, status, home_score, away_score,
           home:teams!matches_home_team_id_fkey(id,name,code,flag_url),
           away:teams!matches_away_team_id_fkey(id,name,code,flag_url)`)
-        .eq("id", matchId)
-        .single();
+        .eq("id", matchId).single();
       if (error) throw error;
       return data as unknown as MatchDetail;
     },
@@ -91,48 +86,45 @@ function PartidoPage() {
       const { data: preds, error } = await supabase
         .from("predictions")
         .select("user_id, home_score, away_score, points, is_exact")
-        .eq("match_id", matchId)
-        .order("points", { ascending: false, nullsFirst: false });
+        .eq("match_id", matchId);
       if (error) throw error;
       if (!preds || preds.length === 0) return [];
-
       const userIds = (preds as RawPred[]).map((p) => p.user_id);
       const { data: profiles } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .in("id", userIds);
-
+        .from("profiles").select("id, display_name, avatar_url").in("id", userIds);
       const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, { display_name: p.display_name, avatar_url: p.avatar_url }]));
-
-      return (preds as RawPred[]).map((p): PredictionRow => ({
-        ...p,
-        profile: profileMap.get(p.user_id) ?? null,
-      }));
+      return (preds as RawPred[]).map((p): PredictionRow => ({ ...p, profile: profileMap.get(p.user_id) ?? null }));
     },
   });
 
-  // Todos los participantes pagados
   const paidQ = useQuery({
     queryKey: ["paid-profiles"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, display_name, avatar_url")
-        .eq("paid", true)
-        .order("display_name");
+      const { data, error } = await supabase.from("profiles").select("id, display_name, avatar_url").eq("paid", true).order("display_name");
       if (error) throw error;
       return (data ?? []) as ProfileRow[];
     },
   });
 
   const match = matchQ.data;
-  const preds = predsQ.data ?? [];
+  const rawPreds = predsQ.data ?? [];
   const allPaid = paidQ.data ?? [];
   const finished = match?.status === "finished" && match?.home_score !== null;
   const kickoff = match ? new Date(match.kickoff) : null;
   const locked = kickoff ? Date.now() >= kickoff.getTime() || match?.status !== "scheduled" : false;
 
-  // Quiénes NO predijeron
+  // Ordenar: si terminó → por pts desc, luego agrupar mismo score; si no → agrupar por score
+  const preds = [...rawPreds].sort((a, b) => {
+    if (finished) {
+      const ptsDiff = (b.points ?? 0) - (a.points ?? 0);
+      if (ptsDiff !== 0) return ptsDiff;
+    }
+    // Agrupar mismo pronóstico
+    const scoreA = `${a.home_score}-${a.away_score}`;
+    const scoreB = `${b.home_score}-${b.away_score}`;
+    return scoreA.localeCompare(scoreB);
+  });
+
   const predictorIds = new Set(preds.map((p) => p.user_id));
   const nonPredictors = allPaid.filter((p) => !predictorIds.has(p.id));
 
@@ -164,7 +156,6 @@ function PartidoPage() {
             <div className="glass-strong rounded-3xl p-6 sm:p-8 mb-6 relative overflow-hidden">
               <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
               <div className="absolute -top-20 -right-20 w-48 h-48 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
-
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-2">
                   {match.group && <span className="px-2.5 py-1 rounded-lg bg-primary/15 text-primary font-mono font-bold text-xs">Grupo {match.group}</span>}
@@ -174,7 +165,6 @@ function PartidoPage() {
                   ? <span className="inline-flex items-center gap-1.5 text-xs font-mono text-secondary"><Trophy className="w-3.5 h-3.5" /> Finalizado</span>
                   : kickoff && <MatchCountdown kickoff={kickoff} />}
               </div>
-
               <div className="flex items-center justify-between gap-4">
                 <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
                   <Flag team={match.home} size="lg" />
@@ -189,9 +179,7 @@ function PartidoPage() {
                       <div className="font-display font-black text-4xl sm:text-5xl text-secondary tabular-nums">{match.home_score} – {match.away_score}</div>
                       <WinnerLabel homeGoals={match.home_score!} awayGoals={match.away_score!} homeName={match.home?.name ?? ""} awayName={match.away?.name ?? ""} />
                     </>
-                  ) : (
-                    <div className="font-display font-black text-3xl text-muted-foreground/40">vs</div>
-                  )}
+                  ) : <div className="font-display font-black text-3xl text-muted-foreground/40">vs</div>}
                 </div>
                 <div className="flex flex-col items-center gap-2 flex-1 min-w-0">
                   <Flag team={match.away} size="lg" />
@@ -201,7 +189,6 @@ function PartidoPage() {
                   </div>
                 </div>
               </div>
-
               <div className="flex flex-wrap items-center justify-center gap-4 mt-6 text-xs text-muted-foreground">
                 {kickoff && <span className="inline-flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5" />{formatKickoff(kickoff)}</span>}
                 {match.venue && <span className="inline-flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5" />{match.venue}</span>}
@@ -245,15 +232,13 @@ function PartidoPage() {
               </div>
             )}
 
-            {/* Tabla de predicciones */}
+            {/* Tabla */}
             {locked ? (
               <div className="glass-strong rounded-3xl overflow-hidden">
                 <div className="flex items-center justify-between gap-2 px-5 py-4 border-b border-border/50">
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-primary" />
-                    <h2 className="font-display font-bold text-lg">
-                      Pronósticos{total > 0 ? ` · ${total}` : ""}
-                    </h2>
+                    <h2 className="font-display font-bold text-lg">Pronósticos{total > 0 ? ` · ${total}` : ""}</h2>
                   </div>
                   {nonPredictors.length > 0 && (
                     <span className="text-xs font-mono text-destructive flex items-center gap-1">
@@ -264,65 +249,86 @@ function PartidoPage() {
 
                 {predsQ.isLoading ? (
                   <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
-                ) : total === 0 && nonPredictors.length === 0 ? (
-                  <div className="text-center py-12 text-muted-foreground text-sm">Nadie predijo este partido.</div>
                 ) : (
                   <>
-                    {/* Header */}
                     <div className="grid grid-cols-[1fr_60px_80px] sm:grid-cols-[1fr_80px_100px] gap-3 px-5 py-2.5 text-[10px] font-mono uppercase tracking-widest text-muted-foreground border-b border-border/30">
                       <div>Jugador</div>
                       <div className="text-center">Pron.</div>
                       {finished && <div className="text-right flex items-center justify-end gap-1"><Star className="w-3 h-3" /> Pts</div>}
                     </div>
-
                     <div className="divide-y divide-border/20">
-                      {/* Quienes SÍ predijeron */}
-                      {preds.map((p, i) => {
-                        const pts = p.points;
-                        const isExact = p.is_exact;
-                        const ptsColor = pts === null ? "text-muted-foreground" : isExact ? "text-gold" : pts > 0 ? "text-secondary" : "text-destructive";
-                        const rowBg = isExact ? "bg-gold/5" : pts !== null && pts > 0 ? "bg-secondary/5" : "";
-                        return (
-                          <div key={i} className={`grid grid-cols-[1fr_60px_80px] sm:grid-cols-[1fr_80px_100px] gap-3 px-5 py-3.5 items-center ${rowBg}`}>
-                            <div className="flex items-center gap-3 min-w-0">
-                              <Avatar profile={p.profile} />
-                              <span className="font-medium text-sm truncate">{p.profile?.display_name ?? "—"}</span>
-                            </div>
-                            <div className="text-center font-mono font-bold text-sm">{p.home_score}–{p.away_score}</div>
-                            {finished && (
-                              <div className={`text-right font-mono font-bold text-sm ${ptsColor}`}>
-                                {isExact && <span className="mr-1">⭐</span>}
-                                {pts !== null ? `+${pts}` : "—"}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-
-                      {/* Quienes NO predijeron */}
-                      {nonPredictors.length > 0 && (
+                      {preds.length === 0 && nonPredictors.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground text-sm">Nadie predijo este partido.</div>
+                      ) : (
                         <>
-                          <div className="px-5 py-2 bg-destructive/5 border-t border-destructive/10">
-                            <span className="text-[10px] font-mono uppercase tracking-widest text-destructive/70 flex items-center gap-1.5">
-                              <XCircle className="w-3 h-3" /> No predijeron este partido
-                            </span>
-                          </div>
-                          {nonPredictors.map((p) => (
-                            <div key={p.id} className="grid grid-cols-[1fr_60px_80px] sm:grid-cols-[1fr_80px_100px] gap-3 px-5 py-3 items-center opacity-50">
-                              <div className="flex items-center gap-3 min-w-0">
-                                <div className="w-8 h-8 rounded-lg bg-border/40 flex items-center justify-center overflow-hidden flex-shrink-0">
-                                  {p.avatar_url
-                                    ? <img src={p.avatar_url} alt="" className="w-full h-full object-cover grayscale" />
-                                    : <span className="text-[10px] font-bold text-muted-foreground">
-                                        {p.display_name?.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase()}
-                                      </span>}
+                          {/* Quienes SÍ predijeron — agrupados por score */}
+                          {(() => {
+                            let lastScore = "";
+                            return preds.map((p, i) => {
+                              const scoreKey = `${p.home_score}-${p.away_score}`;
+                              const isNewGroup = !finished && scoreKey !== lastScore;
+                              lastScore = scoreKey;
+                              const pts = p.points;
+                              const isExact = p.is_exact;
+                              const ptsColor = pts === null ? "text-muted-foreground" : isExact ? "text-gold" : pts > 0 ? "text-secondary" : "text-destructive";
+                              const rowBg = isExact ? "bg-gold/5" : pts !== null && pts > 0 ? "bg-secondary/5" : "";
+                              const count = scoreMap.get(scoreKey) ?? 1;
+
+                              return (
+                                <div key={i}>
+                                  {/* Separador de grupo (solo antes de partido) */}
+                                  {isNewGroup && i > 0 && (
+                                    <div className="h-px bg-border/40 mx-5" />
+                                  )}
+                                  <div className={`grid grid-cols-[1fr_60px_80px] sm:grid-cols-[1fr_80px_100px] gap-3 px-5 py-3.5 items-center ${rowBg}`}>
+                                    <div className="flex items-center gap-3 min-w-0">
+                                      <Avatar p={p.profile} />
+                                      <span className="font-medium text-sm truncate">{p.profile?.display_name ?? "—"}</span>
+                                    </div>
+                                    <div className="text-center font-mono font-bold text-sm flex items-center justify-center gap-1">
+                                      {p.home_score}–{p.away_score}
+                                      {!finished && count > 1 && i === preds.findIndex(x => `${x.home_score}-${x.away_score}` === scoreKey) && (
+                                        <span className="text-[9px] font-mono text-muted-foreground ml-0.5">×{count}</span>
+                                      )}
+                                    </div>
+                                    {finished && (
+                                      <div className={`text-right font-mono font-bold text-sm ${ptsColor}`}>
+                                        {isExact && <span className="mr-1">⭐</span>}
+                                        {pts !== null ? `+${pts}` : "—"}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
-                                <span className="font-medium text-sm truncate text-muted-foreground">{p.display_name}</span>
+                              );
+                            });
+                          })()}
+
+                          {/* Quienes NO predijeron */}
+                          {nonPredictors.length > 0 && (
+                            <>
+                              <div className="px-5 py-2 bg-destructive/5 border-t border-destructive/10">
+                                <span className="text-[10px] font-mono uppercase tracking-widest text-destructive/70 flex items-center gap-1.5">
+                                  <XCircle className="w-3 h-3" /> No predijeron
+                                </span>
                               </div>
-                              <div className="text-center font-mono text-xs text-muted-foreground/60">—</div>
-                              {finished && <div className="text-right font-mono text-xs text-destructive/60">0</div>}
-                            </div>
-                          ))}
+                              {nonPredictors.map((p) => (
+                                <div key={p.id} className="grid grid-cols-[1fr_60px_80px] sm:grid-cols-[1fr_80px_100px] gap-3 px-5 py-3 items-center opacity-40">
+                                  <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-8 h-8 rounded-lg bg-border/40 flex items-center justify-center overflow-hidden flex-shrink-0">
+                                      {p.avatar_url
+                                        ? <img src={p.avatar_url} alt="" className="w-full h-full object-cover grayscale" />
+                                        : <span className="text-[10px] font-bold text-muted-foreground">
+                                            {p.display_name?.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase()}
+                                          </span>}
+                                    </div>
+                                    <span className="font-medium text-sm truncate text-muted-foreground">{p.display_name}</span>
+                                  </div>
+                                  <div className="text-center font-mono text-xs text-muted-foreground">—</div>
+                                  {finished && <div className="text-right font-mono text-xs text-destructive/60">0</div>}
+                                </div>
+                              ))}
+                            </>
+                          )}
                         </>
                       )}
                     </div>
