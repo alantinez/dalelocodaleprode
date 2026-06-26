@@ -1,5 +1,5 @@
 import { motion } from "motion/react";
-import { Target, Trophy, TrendingUp, X, CheckCircle, Star } from "lucide-react";
+import { Target, Trophy, TrendingUp, X, CheckCircle, Star, Clock } from "lucide-react";
 
 const scoring = [
   {
@@ -95,6 +95,30 @@ export function Reglamento() {
             </motion.div>
           ))}
         </div>
+
+        {/* Aclaración fase eliminatoria — NUEVO */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          className="glass-strong rounded-2xl p-5 border border-primary/30 bg-gradient-to-r from-primary/10 via-transparent to-transparent mb-6 flex items-start gap-4"
+        >
+          <div className="w-10 h-10 rounded-xl bg-primary/15 border border-primary/30 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <Clock className="w-5 h-5 text-primary" />
+          </div>
+          <div>
+            <div className="font-display font-bold text-base text-primary mb-1">
+              Fase eliminatoria — se cuenta solo el resultado a los 90 minutos
+            </div>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              En los partidos de 16avos, cuartos, semis y final, los pronósticos se evalúan con el
+              marcador al final del tiempo reglamentario (90 min). Si hay alargue o penales, <span className="text-foreground font-medium">no cuentan</span> para los puntos.
+            </p>
+            <div className="mt-2.5 glass rounded-lg px-3 py-2 text-[11px] font-mono text-muted-foreground">
+              Ej: Predecís 1-1 · Termina 1-1 en 90min · Van a penales → <span className="text-gold font-bold">+5 pts exacto ⭐</span>
+            </div>
+          </div>
+        </motion.div>
 
         {/* Gran Pronóstico destacado */}
         <motion.div
