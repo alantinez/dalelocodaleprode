@@ -18,8 +18,8 @@ export const Route = createFileRoute("/_authenticated/fixture")({
 const GROUPS = ["TODOS", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"] as const;
 const PAGE_SIZE = 8;
 const KNOCKOUT_STAGES = [
-  { key: "r32",   label: "Octavos de Final",  short: "Octavos" },
-  { key: "r16",   label: "Dieciseisavos de Final", short: "16avos" },
+  { key: "r32",   label: "16avos de Final",   short: "16avos" },
+  { key: "r16",   label: "Octavos de Final",   short: "Octavos" },
   { key: "qf",    label: "Cuartos de Final",   short: "Cuartos" },
   { key: "sf",    label: "Semifinales",        short: "Semis" },
   { key: "third", label: "3° y 4° Puesto",     short: "3er puesto" },
