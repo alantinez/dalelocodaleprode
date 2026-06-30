@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CalendarDays, Filter, ChevronDown, Swords, Zap, Clock } from "lucide-react";
+import { Loader2, CalendarDays, Filter, ChevronDown, Swords, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { MatchCard, type MatchWithTeams, type Prediction } from "@/components/fixture/MatchCard";
@@ -18,12 +18,12 @@ export const Route = createFileRoute("/_authenticated/fixture")({
 const GROUPS = ["TODOS", "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"] as const;
 const PAGE_SIZE = 8;
 const KNOCKOUT_STAGES = [
-  { key: "r32",   label: "Octavos de Final" },
-  { key: "r16",   label: "Dieciseisavos de Final" },
-  { key: "qf",    label: "Cuartos de Final" },
-  { key: "sf",    label: "Semifinales" },
-  { key: "third", label: "3° y 4° Puesto" },
-  { key: "final", label: "⚽ Gran Final" },
+  { key: "r32",   label: "Octavos de Final",  short: "Octavos" },
+  { key: "r16",   label: "Dieciseisavos de Final", short: "16avos" },
+  { key: "qf",    label: "Cuartos de Final",   short: "Cuartos" },
+  { key: "sf",    label: "Semifinales",        short: "Semis" },
+  { key: "third", label: "3° y 4° Puesto",     short: "3er puesto" },
+  { key: "final", label: "⚽ Gran Final",       short: "Final" },
 ];
 
 function toArgDate(iso: string) {
@@ -59,23 +59,18 @@ function LiveCountdown({ kickoff }: { kickoff: string }) {
 
 function TodaySection({ matches, predByMatch }: { matches: MatchWithTeams[]; predByMatch: Map<string, Prediction> }) {
   const todayStr = toArgDate(new Date().toISOString());
-
   const todayMatches = matches.filter((m) => toArgDate(m.kickoff) === todayStr);
-
-  // Si no hay partidos hoy, buscar el próximo
   const nextMatch = todayMatches.length === 0
     ? matches.filter((m) => new Date(m.kickoff).getTime() > Date.now() && m.status === "scheduled")
         .sort((a, b) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime())[0]
     : null;
 
   if (todayMatches.length === 0 && !nextMatch) return null;
-
   const isToday = todayMatches.length > 0;
   const displayMatches = isToday ? todayMatches : [nextMatch!];
 
   return (
     <section className="mb-8">
-      {/* Header */}
       <div className="flex items-center gap-2 mb-4">
         <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-mono font-bold ${
           isToday ? "bg-secondary/15 text-secondary" : "bg-primary/10 text-primary"
@@ -89,28 +84,20 @@ function TodaySection({ matches, predByMatch }: { matches: MatchWithTeams[]; pre
         <h2 className="font-display font-bold text-lg">
           {isToday ? `${todayMatches.length} partido${todayMatches.length > 1 ? "s" : ""} hoy` : "Próximo partido"}
         </h2>
-        {isToday && (
-          <div className="flex-1 h-px bg-gradient-to-r from-secondary/40 to-transparent" />
-        )}
+        {isToday && <div className="flex-1 h-px bg-gradient-to-r from-secondary/40 to-transparent" />}
       </div>
-
-      {/* Cards destacadas */}
       <div className={`grid gap-3 ${displayMatches.length > 1 ? "sm:grid-cols-2" : "sm:grid-cols-1 max-w-md"}`}>
         {displayMatches.map((m) => {
           const locked = new Date(m.kickoff).getTime() <= Date.now();
           const finished = m.status === "finished";
           return (
             <div key={m.id} className="relative">
-              {/* Glow border destacado */}
               <div className={`absolute -inset-0.5 rounded-[1.25rem] blur-sm opacity-60 ${
                 finished ? "bg-gradient-to-br from-primary/40 to-secondary/40" :
                 locked ? "bg-gradient-to-br from-gold/30 to-primary/30" :
                 "bg-gradient-to-br from-secondary/50 to-primary/50"
               }`} />
-              <div className="relative">
-                <MatchCard match={m} prediction={predByMatch.get(m.id) ?? null} />
-              </div>
-              {/* Badge de countdown si no arrancó */}
+              <div className="relative"><MatchCard match={m} prediction={predByMatch.get(m.id) ?? null} /></div>
               {!locked && !finished && (
                 <div className="absolute -top-2 -right-2 z-10 glass-strong rounded-lg px-2 py-1 shadow-glow border border-border/60">
                   <LiveCountdown kickoff={m.kickoff} />
@@ -125,8 +112,6 @@ function TodaySection({ matches, predByMatch }: { matches: MatchWithTeams[]; pre
           );
         })}
       </div>
-
-      {/* Separador */}
       <div className="mt-6 h-px bg-gradient-to-r from-transparent via-border/60 to-transparent" />
     </section>
   );
@@ -134,7 +119,8 @@ function TodaySection({ matches, predByMatch }: { matches: MatchWithTeams[]; pre
 
 function FixturePage() {
   const { user } = useAuth();
-  const [phase, setPhase] = useState<"grupos" | "knockout">("grupos");
+  const [phase, setPhase] = useState<"grupos" | "knockout">("knockout"); // ← default ahora es knockout
+  const [knockoutStage, setKnockoutStage] = useState<string | null>(null); // se autoselecciona
   const [group, setGroup] = useState<(typeof GROUPS)[number]>("TODOS");
   const [onlyPending, setOnlyPending] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -212,9 +198,26 @@ function FixturePage() {
   }, [matchesQ.data]);
 
   const hasKnockout = knockoutByStage.size > 0;
+  const activeStages = KNOCKOUT_STAGES.filter((s) => knockoutByStage.has(s.key));
+
+  // Auto-seleccionar la fase actual: la primera (en orden de torneo) que tenga partidos pendientes,
+  // o si todas terminaron, la última fase con partidos.
+  useEffect(() => {
+    if (knockoutStage !== null) return; // ya hay selección manual o auto hecha
+    if (activeStages.length === 0) return;
+
+    const stageWithPending = activeStages.find((s) => {
+      const matches = knockoutByStage.get(s.key) ?? [];
+      return matches.some((m) => m.status !== "finished");
+    });
+
+    setKnockoutStage(stageWithPending?.key ?? activeStages[activeStages.length - 1].key);
+  }, [activeStages, knockoutByStage, knockoutStage]);
+
   const totalPreds = predsQ.data?.length ?? 0;
   const totalMatches = (matchesQ.data ?? []).filter((m) => m.stage === "group").length;
   const allMatches = matchesQ.data ?? [];
+  const groupStageOver = totalMatches > 0 && (matchesQ.data ?? []).filter((m) => m.stage === "group" && m.status === "finished").length === totalMatches;
 
   return (
     <div className="mx-auto max-w-5xl px-4 sm:px-6">
@@ -240,10 +243,19 @@ function FixturePage() {
         <p className="text-muted-foreground mt-2 text-sm sm:text-base">
           Cargá tu pronóstico antes de que arranque cada partido. Después, queda bloqueado.
         </p>
-        <div className="mt-4 inline-flex items-center gap-2 glass rounded-xl px-3 py-1.5 text-xs font-mono">
-          <span className="text-secondary font-bold">{totalPreds}</span>
-          <span className="text-muted-foreground">/ {totalMatches} pronosticados en grupos</span>
-        </div>
+        {phase === "knockout" ? (
+          hasKnockout && (
+            <div className="mt-4 inline-flex items-center gap-2 glass rounded-xl px-3 py-1.5 text-xs font-mono">
+              <Swords className="w-3.5 h-3.5 text-primary" />
+              <span className="text-muted-foreground">Fase eliminatoria en curso</span>
+            </div>
+          )
+        ) : (
+          <div className="mt-4 inline-flex items-center gap-2 glass rounded-xl px-3 py-1.5 text-xs font-mono">
+            <span className="text-secondary font-bold">{totalPreds}</span>
+            <span className="text-muted-foreground">/ {totalMatches} pronosticados en grupos</span>
+          </div>
+        )}
       </header>
 
       <ChampionPicker />
@@ -255,18 +267,19 @@ function FixturePage() {
 
       {/* Tabs de fase */}
       <div className="flex gap-2 mb-6">
-        <button onClick={() => setPhase("grupos")}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition ${
-            phase === "grupos" ? "bg-gradient-to-r from-primary to-secondary text-background shadow-glow" : "glass text-muted-foreground hover:text-foreground"
-          }`}>
-          <Filter className="w-4 h-4" /> Fase de Grupos
-        </button>
         <button onClick={() => setPhase("knockout")}
           className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition ${
             phase === "knockout" ? "bg-gradient-to-r from-primary to-secondary text-background shadow-glow" : "glass text-muted-foreground hover:text-foreground"
           }`}>
           <Swords className="w-4 h-4" /> Fase Knockout
           {hasKnockout && <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />}
+        </button>
+        <button onClick={() => setPhase("grupos")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition ${
+            phase === "grupos" ? "bg-gradient-to-r from-primary to-secondary text-background shadow-glow" : "glass text-muted-foreground hover:text-foreground"
+          }`}>
+          <Filter className="w-4 h-4" /> Fase de Grupos
+          {groupStageOver && <span className="text-[9px] font-mono text-muted-foreground/60 ml-0.5">(finalizada)</span>}
         </button>
       </div>
 
@@ -343,22 +356,50 @@ function FixturePage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-10">
-            {KNOCKOUT_STAGES.filter((s) => knockoutByStage.has(s.key)).map((s) => (
-              <section key={s.key}>
+          <>
+            {/* Sub-tabs de etapa knockout */}
+            <div className="sticky top-24 z-30 mb-6">
+              <div className="glass-strong rounded-2xl p-3 flex flex-wrap items-center gap-1.5">
+                {activeStages.map((s) => {
+                  const stageMatches = knockoutByStage.get(s.key) ?? [];
+                  const pendingCount = stageMatches.filter((m) => m.status !== "finished").length;
+                  return (
+                    <button key={s.key} onClick={() => setKnockoutStage(s.key)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition ${
+                        knockoutStage === s.key ? "bg-gradient-to-r from-primary to-secondary text-background shadow-glow" : "glass hover:bg-card text-muted-foreground"
+                      }`}>
+                      {s.short}
+                      {pendingCount > 0 && (
+                        <span className={`text-[9px] px-1 rounded-full ${knockoutStage === s.key ? "bg-background/20" : "bg-secondary/20 text-secondary"}`}>
+                          {pendingCount}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Partidos de la etapa activa */}
+            {knockoutStage && knockoutByStage.has(knockoutStage) ? (
+              <section>
                 <div className="flex items-center gap-3 mb-4">
                   <div className="h-px flex-1 bg-border/60" />
-                  <h2 className="font-display font-bold text-lg text-gradient-hero whitespace-nowrap">{s.label}</h2>
+                  <h2 className="font-display font-bold text-lg text-gradient-hero whitespace-nowrap">
+                    {KNOCKOUT_STAGES.find((s) => s.key === knockoutStage)?.label}
+                  </h2>
                   <div className="h-px flex-1 bg-border/60" />
                 </div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {knockoutByStage.get(s.key)!.map((m) => (
+                  {knockoutByStage.get(knockoutStage)!.map((m) => (
                     <MatchCard key={m.id} match={m} prediction={predByMatch.get(m.id) ?? null} />
                   ))}
                 </div>
               </section>
-            ))}
-          </div>
+            ) : (
+              <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+            )}
+          </>
         )
       )}
     </div>
