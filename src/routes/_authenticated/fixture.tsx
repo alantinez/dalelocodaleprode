@@ -206,12 +206,12 @@ function FixturePage() {
     if (knockoutStage !== null) return; // ya hay selección manual o auto hecha
     if (activeStages.length === 0) return;
 
-    const stageWithPending = activeStages.find((s) => {
+    const stageWithScheduled = activeStages.find((s) => {
       const matches = knockoutByStage.get(s.key) ?? [];
-      return matches.some((m) => m.status !== "finished");
+      return matches.some((m) => m.status === "scheduled");
     });
 
-    setKnockoutStage(stageWithPending?.key ?? activeStages[activeStages.length - 1].key);
+    setKnockoutStage(stageWithScheduled?.key ?? activeStages[activeStages.length - 1].key);
   }, [activeStages, knockoutByStage, knockoutStage]);
 
   const totalPreds = predsQ.data?.length ?? 0;
