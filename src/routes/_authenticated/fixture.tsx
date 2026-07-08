@@ -397,6 +397,26 @@ function FixturePage() {
                   </h2>
                   <div className="h-px flex-1 bg-border/60" />
                 </div>
+                {/* Contador de pendientes */}
+                {(() => {
+                  const stageMatches = knockoutByStage.get(knockoutStage) ?? [];
+                  const predictable = stageMatches.filter((m) => m.status === "scheduled" && new Date(m.kickoff).getTime() > Date.now());
+                  const unpredicted = predictable.filter((m) => !predByMatch.has(m.id));
+                  if (predictable.length === 0) return null;
+                  return unpredicted.length > 0 ? (
+                    <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-destructive/10 border border-destructive/20 text-sm">
+                      <span className="relative flex h-2 w-2 flex-shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-destructive opacity-75"/>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-destructive"/>
+                      </span>
+                      <span className="text-destructive font-semibold">Te {unpredicted.length === 1 ? "falta" : "faltan"} <span className="font-black">{unpredicted.length}</span> {unpredicted.length === 1 ? "partido" : "partidos"} por predecir</span>
+                    </div>
+                  ) : (
+                    <div className="mb-4 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-secondary/10 border border-secondary/20 text-sm">
+                      <span className="text-secondary font-semibold">✅ Predijiste todos los partidos de esta fase</span>
+                    </div>
+                  );
+                })()}
                 <div className="grid gap-3 sm:grid-cols-2">
                   {knockoutByStage.get(knockoutStage)!.map((m) => (
                     <MatchCard key={m.id} match={m} prediction={predByMatch.get(m.id) ?? null} />
