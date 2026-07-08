@@ -28,6 +28,7 @@ export const Route = createFileRoute("/ranking")({
 
 type Profile = { id: string; display_name: string; avatar_url: string | null; total_points: number; exact_hits: number; current_streak: number; };
 type HistoryEntry = { user_id: string; position: number; snapshot_at: string; label: string | null; };
+type EnrichedHistoryEntry = HistoryEntry & { display_name?: string };
 
 const PLAYER_COLORS = [
   "#e8002d","#0090ff","#00d2be","#ff8000","#dc0000",
@@ -279,8 +280,11 @@ function ChartTooltip({ active, payload, label }: any) {
   );
 }
 
-function EvolutionChart({ allHistory }: { allHistory: HistoryEntry[] }) {
-  const snapshotMap = new Map<string, { label: string; entries: HistoryEntry[] }>();
+/* ─── EVOLUTION CHART (F1 style) ─── */
+function EvolutionChart({ allHistory }: { allHistory: EnrichedHistoryEntry[] }) {
+  const [hovered, setHovered] = useState<string | null>(null);
+
+  const snapshotMap = new Map<string, { label: string; entries: EnrichedHistoryEntry[] }>();
   for (const row of allHistory) {
     if (!snapshotMap.has(row.snapshot_at)) snapshotMap.set(row.snapshot_at, { label: row.label ?? row.snapshot_at.slice(0, 10), entries: [] });
     snapshotMap.get(row.snapshot_at)!.entries.push(row);
@@ -288,9 +292,14 @@ function EvolutionChart({ allHistory }: { allHistory: HistoryEntry[] }) {
   const snapshots = [...snapshotMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v);
   if (snapshots.length < 2) return null;
 
-  const playerIds = new Set(allHistory.map((r) => r.user_id));
+  // Orden estable por user_id (no por orden de aparición en la query), así cada
+  // jugador conserva siempre el mismo color entre recargas/refetches.
+  const playerIds = [...new Set(allHistory.map((r) => r.user_id))].sort();
+
   const userNames = new Map<string, string>();
-  playerIds.forEach((id) => userNames.set(id, id.slice(0, 6)));
+  allHistory.forEach((r) => {
+    if (r.display_name) userNames.set(r.user_id, r.display_name);
+  });
 
   const chartData = snapshots.map((snap) => {
     const point: Record<string, any> = { snapshot: snap.label };
@@ -301,7 +310,7 @@ function EvolutionChart({ allHistory }: { allHistory: HistoryEntry[] }) {
     return point;
   });
 
-  const players = [...playerIds].map((id, idx) => ({
+  const players = playerIds.map((id, idx) => ({
     id, name: userNames.get(id) ?? id.slice(0, 6), color: PLAYER_COLORS[idx % PLAYER_COLORS.length],
   }));
 
@@ -314,6 +323,9 @@ function EvolutionChart({ allHistory }: { allHistory: HistoryEntry[] }) {
         <h2 className="font-display font-bold text-lg">Evolución del ranking</h2>
         <span className="text-xs font-mono text-muted-foreground ml-1">estilo F1</span>
       </div>
+      <p className="text-[10px] text-muted-foreground -mt-3 mb-4 font-mono text-center sm:text-left">
+        Pasá el mouse sobre un nombre en la leyenda para resaltar su línea
+      </p>
       <div className="h-[320px] sm:h-[400px]">
         <ResponsiveContainer width="100%" height="100%">
           <RLineChart data={chartData} margin={{ top: 8, right: 16, left: -20, bottom: 0 }}>
@@ -321,13 +333,44 @@ function EvolutionChart({ allHistory }: { allHistory: HistoryEntry[] }) {
             <XAxis dataKey="snapshot" tick={{ fill: "#888", fontSize: 11, fontFamily: "monospace" }} axisLine={{ stroke: "rgba(255,255,255,0.1)" }} tickLine={false} />
             <YAxis reversed domain={[1, maxPos]} tickCount={maxPos} tick={{ fill: "#888", fontSize: 11, fontFamily: "monospace" }} axisLine={false} tickLine={false} tickFormatter={(v) => `#${v}`} />
             <Tooltip content={<ChartTooltip />} />
-            {players.map((p) => (
-              <Line key={p.id} type="monotone" dataKey={p.name} stroke={p.color} strokeWidth={2.5}
-                dot={{ r: 5, fill: p.color, strokeWidth: 2, stroke: "#0a0a0f" }}
-                activeDot={{ r: 7, stroke: p.color, strokeWidth: 2, fill: "#0a0a0f" }}
-                connectNulls />
-            ))}
-            <Legend formatter={(value) => <span style={{ color: "#ccc", fontSize: 11, fontFamily: "monospace" }}>{value}</span>} iconType="circle" iconSize={8} />
+            {players.map((p) => {
+              const isDimmed = hovered !== null && hovered !== p.name;
+              return (
+                <Line
+                  key={p.id}
+                  type="monotone"
+                  dataKey={p.name}
+                  stroke={p.color}
+                  strokeWidth={hovered === p.name ? 3.5 : 2}
+                  strokeOpacity={isDimmed ? 0.12 : 1}
+                  dot={{ r: hovered === p.name ? 5.5 : 3.5, fill: p.color, strokeWidth: 1.5, stroke: "#0a0a0f", fillOpacity: isDimmed ? 0.12 : 1, strokeOpacity: isDimmed ? 0.12 : 1 }}
+                  activeDot={{ r: 7, stroke: p.color, strokeWidth: 2, fill: "#0a0a0f" }}
+                  connectNulls
+                  isAnimationActive={false}
+                  onMouseEnter={() => setHovered(p.name)}
+                  onMouseLeave={() => setHovered(null)}
+                />
+              );
+            })}
+            <Legend
+              onMouseEnter={(o: any) => setHovered(o.dataKey as string)}
+              onMouseLeave={() => setHovered(null)}
+              formatter={(value) => (
+                <span
+                  style={{
+                    color: hovered === value ? "#fff" : "#ccc",
+                    fontWeight: hovered === value ? 700 : 400,
+                    fontSize: 11,
+                    fontFamily: "monospace",
+                    cursor: "pointer",
+                  }}
+                >
+                  {value}
+                </span>
+              )}
+              iconType="circle"
+              iconSize={8}
+            />
           </RLineChart>
         </ResponsiveContainer>
       </div>
@@ -386,7 +429,7 @@ function RankingPage() {
   const distinctSnapshots = new Set(allHistoryQ.data?.map((r) => r.snapshot_at) ?? []).size;
   const showChart = distinctSnapshots >= 2;
 
-  const enrichedHistory = (() => {
+  const enrichedHistory: EnrichedHistoryEntry[] = (() => {
     if (!allHistoryQ.data || !q.data) return allHistoryQ.data ?? [];
     const nameMap = new Map(q.data.map((p) => [p.id, p.display_name]));
     return allHistoryQ.data.map((row) => ({ ...row, display_name: nameMap.get(row.user_id) ?? row.user_id.slice(0, 6) }));
@@ -495,7 +538,7 @@ function RankingPage() {
               })}
             </div>
 
-            {showChart && <div id="evolucion"><EvolutionChart allHistory={enrichedHistory as any} /></div>}
+            {showChart && <div id="evolucion"><EvolutionChart allHistory={enrichedHistory} /></div>}
             {!hasHistory && <p className="text-center text-xs text-muted-foreground mt-6 font-mono">Las flechas y el gráfico aparecerán cuando el admin guarde el primer snapshot.</p>}
           </>
         )}
