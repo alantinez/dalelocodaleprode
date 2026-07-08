@@ -357,23 +357,30 @@ function FixturePage() {
           </div>
         ) : (
           <>
-            {/* Sub-tabs de etapa knockout */}
+            {/* Sub-tabs de etapa knockout — incluye upcoming sin partidos */}
             <div className="sticky top-24 z-30 mb-6">
               <div className="glass-strong rounded-2xl p-3 flex flex-wrap items-center gap-1.5">
-                {activeStages.map((s) => {
+                {KNOCKOUT_STAGES.map((s) => {
+                  const hasMatches = knockoutByStage.has(s.key);
                   const stageMatches = knockoutByStage.get(s.key) ?? [];
                   const pendingCount = stageMatches.filter((m) => m.status !== "finished").length;
+                  const isUpcoming = !hasMatches;
                   return (
                     <button key={s.key} onClick={() => setKnockoutStage(s.key)}
                       className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-mono font-bold transition ${
-                        knockoutStage === s.key ? "bg-gradient-to-r from-primary to-secondary text-background shadow-glow" : "glass hover:bg-card text-muted-foreground"
+                        knockoutStage === s.key
+                          ? "bg-gradient-to-r from-primary to-secondary text-background shadow-glow"
+                          : isUpcoming
+                          ? "glass text-muted-foreground/40 hover:text-muted-foreground"
+                          : "glass hover:bg-card text-muted-foreground"
                       }`}>
                       {s.short}
-                      {pendingCount > 0 && (
+                      {!isUpcoming && pendingCount > 0 && (
                         <span className={`text-[9px] px-1 rounded-full ${knockoutStage === s.key ? "bg-background/20" : "bg-secondary/20 text-secondary"}`}>
                           {pendingCount}
                         </span>
                       )}
+                      {isUpcoming && <span className="text-[8px] opacity-50">🔒</span>}
                     </button>
                   );
                 })}
@@ -396,6 +403,16 @@ function FixturePage() {
                   ))}
                 </div>
               </section>
+            ) : knockoutStage ? (
+              <div className="glass-strong rounded-2xl p-10 text-center border border-border/20">
+                <div className="text-4xl mb-3">🔒</div>
+                <h3 className="font-display font-bold text-lg mb-1">
+                  {KNOCKOUT_STAGES.find((s) => s.key === knockoutStage)?.label}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Los cruces se definirán cuando avance el torneo.
+                </p>
+              </div>
             ) : (
               <div className="flex justify-center py-10"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
             )}
