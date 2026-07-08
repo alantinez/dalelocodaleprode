@@ -100,7 +100,7 @@ export function Navbar({ hasBanner = false }: { hasBanner?: boolean }) {
                   <MobileLink to="/fixture"    label="⚽ Fixture"       onClick={close} />
                   <MobileLink to="/standings"  label="📋 Tabla grupos"  onClick={close} />
                   <MobileLink to="/ranking"    label="🏅 Ranking"       onClick={close} />
-                  <MobileLink to="/resumen"    label="📅 Fechas"        onClick={close} />
+                  <MobileLink to="/resumen"    label="📅 Resumen rondas" onClick={close} />
                   <MobileLink to="/campeones"  label="🏆 Campeones"     onClick={close} />
                   <MobileLink to="/feed"       label="⚡ Feed"          onClick={close} />
                   <MobileLink to="/chat"       label="💬 Chat"          onClick={close} />
