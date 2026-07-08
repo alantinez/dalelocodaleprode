@@ -1,351 +1,182 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import {
-  ArrowLeft, ArrowRight, Loader2, Trophy, Star,
-  TrendingUp, ChevronLeft, ChevronRight, Calendar,
-} from "lucide-react";
+import { ArrowLeft, Loader2, Trophy, Star, TrendingUp, Swords } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Navbar } from "@/components/landing/Navbar";
-import { useState } from "react";
 
 export const Route = createFileRoute("/_authenticated/resumen")({
-  head: () => ({ meta: [{ title: "Resumen de fechas · Dale Dale" }] }),
+  head: () => ({ meta: [{ title: "Resumen de rondas · Dale Dale" }] }),
   component: ResumenPage,
 });
 
-type MatchResult = {
-  id: string;
-  kickoff: string;
-  group: string | null;
+type StageRow = {
   stage: string;
-  home_score: number;
-  away_score: number;
-  home: { name: string; code: string; flag_url: string | null } | null;
-  away: { name: string; code: string; flag_url: string | null } | null;
-};
-
-type PredRow = {
   user_id: string;
-  match_id: string;
-  home_score: number;
-  away_score: number;
-  points: number;
-  is_exact: boolean;
-  profiles: { display_name: string; avatar_url: string | null } | null;
+  display_name: string;
+  avatar_url: string | null;
+  stage_points: number;
+  stage_exacts: number;
 };
 
-type DaySummary = {
-  date: string; // YYYY-MM-DD
-  label: string;
-  matches: MatchResult[];
-  predictions: PredRow[];
+const STAGE_META: Record<string, { label: string; emoji: string; color: string; bg: string }> = {
+  r32:   { label: "16avos de Final", emoji: "⚔️",  color: "text-primary",    bg: "from-primary/20 to-primary/5" },
+  r16:   { label: "Octavos de Final", emoji: "🔥", color: "text-secondary",  bg: "from-secondary/20 to-secondary/5" },
+  qf:    { label: "Cuartos de Final", emoji: "💥", color: "text-gold",       bg: "from-gold/20 to-gold/5" },
+  sf:    { label: "Semifinales",      emoji: "🌟", color: "text-primary",    bg: "from-primary/20 to-primary/5" },
+  final: { label: "Gran Final",       emoji: "🏆", color: "text-gold",       bg: "from-gold/30 to-gold/5" },
 };
 
-function toDateStr(iso: string) {
-  return new Date(iso).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }).split("/").reverse().map((s, i) => i === 2 ? s : s.padStart(2, "0")).join("-");
-}
-
-function fmtLabel(dateStr: string) {
-  const [y, m, d] = dateStr.split("-");
-  const months = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
-  return `${parseInt(d)} ${months[parseInt(m) - 1]} ${y}`;
-}
-
-function Avatar({ profile }: { profile: PredRow["profiles"] }) {
-  const initials = profile?.display_name?.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase() ?? "?";
+function Avatar({ name, url }: { name: string; url: string | null }) {
+  const initials = name.split(" ").map((s) => s[0]).slice(0, 2).join("").toUpperCase();
   return (
-    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden flex-shrink-0">
-      {profile?.avatar_url
-        ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-        : <span className="text-[10px] font-bold text-background">{initials}</span>}
+    <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-secondary flex items-center justify-center overflow-hidden flex-shrink-0">
+      {url ? <img src={url} alt="" className="w-full h-full object-cover" />
+           : <span className="text-[10px] font-bold text-background">{initials}</span>}
     </div>
   );
 }
 
-function MatchSummaryCard({ match, predictions }: { match: MatchResult; predictions: PredRow[] }) {
-  const matchPreds = predictions.filter((p) => p.match_id === match.id);
-  const exactos = matchPreds.filter((p) => p.is_exact);
-  const totalPreds = matchPreds.length;
-
-  const homeWins = match.home_score > match.away_score;
-  const awayWins = match.away_score > match.home_score;
+function StageCard({ stage, rows }: { stage: string; rows: StageRow[] }) {
+  const meta = STAGE_META[stage] ?? { label: stage, emoji: "⚽", color: "text-primary", bg: "from-primary/20 to-primary/5" };
+  const sorted = [...rows].sort((a, b) => b.stage_points - a.stage_points || b.stage_exacts - a.stage_exacts);
+  const top = sorted[0];
+  const maxPts = top?.stage_points ?? 1;
 
   return (
-    <div className="glass rounded-2xl p-4">
-      {/* Match header */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          {match.group && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-primary/15 text-primary">Grupo {match.group}</span>}
-          {match.stage !== "group" && <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-secondary/15 text-secondary capitalize">{match.stage}</span>}
-        </div>
-        {totalPreds > 0 && (
-          <span className="text-[10px] font-mono text-muted-foreground">{totalPreds} pronósticos</span>
-        )}
-      </div>
-
-      {/* Teams + score */}
-      <div className="flex items-center gap-3 mb-3">
-        <div className={`flex items-center gap-2 flex-1 min-w-0 ${homeWins ? "" : "opacity-60"}`}>
-          {match.home?.flag_url && <img src={match.home.flag_url} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />}
-          <span className={`text-sm font-medium truncate ${homeWins ? "font-bold" : ""}`}>{match.home?.name}</span>
-        </div>
-        <div className="font-display font-black text-xl flex-shrink-0 text-secondary">
-          {match.home_score} – {match.away_score}
-        </div>
-        <div className={`flex items-center gap-2 flex-1 min-w-0 justify-end ${awayWins ? "" : "opacity-60"}`}>
-          <span className={`text-sm font-medium truncate text-right ${awayWins ? "font-bold" : ""}`}>{match.away?.name}</span>
-          {match.away?.flag_url && <img src={match.away.flag_url} alt="" className="w-6 h-6 rounded-full object-cover flex-shrink-0" />}
-        </div>
-      </div>
-
-      {/* Exactos */}
-      {exactos.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] font-mono text-gold uppercase tracking-wider">⭐ Exacto:</span>
-          {exactos.map((p, i) => (
-            <div key={i} className="flex items-center gap-1.5">
-              <Avatar profile={p.profiles} />
-              <span className="text-xs font-medium">{p.profiles?.display_name?.split(" ")[0]}</span>
-              <span className="text-[10px] font-mono text-gold">+{p.points}pts</span>
+    <div className={`glass-strong rounded-3xl overflow-hidden border border-border/30`}>
+      {/* Header */}
+      <div className={`bg-gradient-to-r ${meta.bg} px-6 py-4 border-b border-border/30`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">{meta.emoji}</span>
+            <div>
+              <h2 className={`font-display font-bold text-lg ${meta.color}`}>{meta.label}</h2>
+              <p className="text-xs text-muted-foreground font-mono">{sorted.length} participantes</p>
             </div>
-          ))}
-        </div>
-      )}
-
-      {totalPreds > 0 && exactos.length === 0 && (
-        <div className="text-[10px] font-mono text-muted-foreground">😅 Nadie acertó el exacto</div>
-      )}
-    </div>
-  );
-}
-
-function DayView({ day }: { day: DaySummary }) {
-  // Calcular puntos por usuario en este día
-  const userPoints = new Map<string, { display_name: string; avatar_url: string | null; pts: number; exactos: number }>();
-
-  for (const p of day.predictions) {
-    if (!userPoints.has(p.user_id)) {
-      userPoints.set(p.user_id, {
-        display_name: p.profiles?.display_name ?? "?",
-        avatar_url: p.profiles?.avatar_url ?? null,
-        pts: 0, exactos: 0,
-      });
-    }
-    const u = userPoints.get(p.user_id)!;
-    u.pts += p.points ?? 0;
-    if (p.is_exact) u.exactos++;
-  }
-
-  const sorted = [...userPoints.values()].sort((a, b) => b.pts - a.pts || b.exactos - a.exactos);
-  const top3 = sorted.slice(0, 3);
-  const worst = sorted.filter((u) => u.pts === 0 && sorted.some((x) => x.pts > 0));
-  const totalExactos = day.predictions.filter((p) => p.is_exact).length;
-
-  return (
-    <div className="space-y-6">
-      {/* Stats del día */}
-      {sorted.length > 0 && (
-        <div className="grid grid-cols-3 gap-3">
-          <div className="glass rounded-2xl p-4 text-center">
-            <div className="font-display font-bold text-2xl text-primary">{day.matches.length}</div>
-            <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-1">Partidos</div>
           </div>
-          <div className="glass rounded-2xl p-4 text-center">
-            <div className="font-display font-bold text-2xl text-gold">{totalExactos}</div>
-            <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-1">Exactos ⭐</div>
-          </div>
-          <div className="glass rounded-2xl p-4 text-center">
-            <div className="font-display font-bold text-2xl text-secondary">{top3[0]?.pts ?? 0}</div>
-            <div className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground mt-1">Máx. pts</div>
-          </div>
-        </div>
-      )}
-
-      {/* Podio del día */}
-      {top3.length > 0 && (
-        <div className="glass-strong rounded-2xl p-5">
-          <h3 className="font-display font-bold text-base mb-4 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-primary" /> Top de la jornada
-          </h3>
-          <div className="space-y-2">
-            {top3.map((u, i) => {
-              const medals = ["🥇", "🥈", "🥉"];
-              return (
-                <div key={u.display_name} className="flex items-center gap-3">
-                  <span className="text-lg w-6 flex-shrink-0">{medals[i]}</span>
-                  <Avatar profile={u} />
-                  <span className="font-medium text-sm flex-1 truncate">{u.display_name}</span>
-                  <div className="text-right flex-shrink-0">
-                    <div className="font-mono font-bold text-sm text-primary">+{u.pts} pts</div>
-                    {u.exactos > 0 && <div className="text-[10px] text-gold">⭐ {u.exactos} exacto{u.exactos > 1 ? "s" : ""}</div>}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Mufa del día */}
-          {worst.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-border/40">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm">😈 Mufa del día:</span>
-                {worst.slice(0, 3).map((u, i) => (
-                  <div key={i} className="flex items-center gap-1.5">
-                    <Avatar profile={u} />
-                    <span className="text-xs text-muted-foreground">{u.display_name.split(" ")[0]}</span>
-                  </div>
-                ))}
-              </div>
+          {top && (
+            <div className="text-right">
+              <div className={`font-display font-black text-2xl ${meta.color}`}>{top.stage_points} pts</div>
+              <div className="text-xs text-muted-foreground">máximo</div>
             </div>
           )}
         </div>
-      )}
-
-      {/* Partidos del día */}
-      <div>
-        <h3 className="font-display font-bold text-base mb-3 flex items-center gap-2">
-          <Trophy className="w-4 h-4 text-secondary" /> Partidos
-        </h3>
-        <div className="space-y-3">
-          {day.matches.map((m) => (
-            <MatchSummaryCard key={m.id} match={m} predictions={day.predictions} />
-          ))}
-        </div>
       </div>
 
-      {/* Tabla completa del día */}
-      {sorted.length > 3 && (
-        <div className="glass-strong rounded-2xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-border/50 text-sm font-semibold">Todos los jugadores</div>
-          <div className="divide-y divide-border/20">
-            {sorted.map((u, i) => (
-              <div key={u.display_name} className="flex items-center gap-3 px-4 py-3 hover:bg-card/40 transition">
-                <span className="text-xs font-mono text-muted-foreground w-4">{i + 1}</span>
-                <Avatar profile={u} />
-                <span className="font-medium text-sm flex-1 truncate">{u.display_name}</span>
-                {u.exactos > 0 && <span className="text-[10px] text-gold font-mono">⭐{u.exactos}</span>}
-                <span className={`font-mono font-bold text-sm ${u.pts > 0 ? "text-primary" : "text-muted-foreground"}`}>
-                  +{u.pts}
-                </span>
+      {/* Tabla */}
+      <div className="divide-y divide-border/20">
+        {sorted.map((r, i) => {
+          const pct = maxPts > 0 ? (r.stage_points / maxPts) * 100 : 0;
+          const isFirst = i === 0;
+          const isSecond = i === 1;
+          const isThird = i === 2;
+          const medalColor = isFirst ? "text-gold" : isSecond ? "text-silver" : isThird ? "text-bronze" : "text-muted-foreground";
+
+          return (
+            <div key={r.user_id} className={`px-5 py-3.5 flex items-center gap-3 ${isFirst ? "bg-gold/5" : ""}`}>
+              {/* Posición */}
+              <span className={`font-display font-bold text-lg w-6 flex-shrink-0 ${medalColor}`}>
+                {i + 1}
+              </span>
+
+              {/* Avatar */}
+              <Avatar name={r.display_name} url={r.avatar_url} />
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-medium text-sm truncate">{r.display_name}</span>
+                  {r.stage_exacts > 0 && (
+                    <span className="text-[10px] font-mono text-gold flex-shrink-0">⭐ ×{r.stage_exacts}</span>
+                  )}
+                </div>
+                {/* Barra de progreso */}
+                <div className="h-1.5 rounded-full bg-border/30 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-700 ${isFirst ? "bg-gold" : "bg-primary/60"}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+
+              {/* Puntos */}
+              <div className="text-right flex-shrink-0">
+                <div className={`font-mono font-bold text-sm ${isFirst ? "text-gold" : meta.color}`}>
+                  +{r.stage_points}
+                </div>
+                <div className="text-[10px] text-muted-foreground">pts</div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 function ResumenPage() {
-  const [dayIdx, setDayIdx] = useState(0); // 0 = más reciente
-
-  const matchesQ = useQuery({
-    queryKey: ["resumen-matches"],
+  const q = useQuery({
+    queryKey: ["stage-leaderboard"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("matches")
-        .select(`id, kickoff, group, stage, home_score, away_score,
-          home:teams!matches_home_team_id_fkey(name, code, flag_url),
-          away:teams!matches_away_team_id_fkey(name, code, flag_url)`)
-        .eq("status", "finished")
-        .order("kickoff", { ascending: true });
+      const { data, error } = await supabase.rpc("get_stage_leaderboard");
       if (error) throw error;
-      return (data ?? []) as unknown as MatchResult[];
+      return (data ?? []) as StageRow[];
     },
     refetchInterval: 60_000,
   });
 
-  const predsQ = useQuery({
-    queryKey: ["resumen-predictions"],
-    enabled: (matchesQ.data?.length ?? 0) > 0,
-    queryFn: async () => {
-      const matchIds = matchesQ.data!.map((m) => m.id);
-      const { data, error } = await supabase
-        .from("predictions")
-        .select("user_id, match_id, home_score, away_score, points, is_exact, profiles(display_name, avatar_url)")
-        .in("match_id", matchIds);
-      if (error) throw error;
-      return (data ?? []) as unknown as PredRow[];
-    },
-    refetchInterval: 60_000,
-  });
-
-  const matches = matchesQ.data ?? [];
-  const predictions = predsQ.data ?? [];
-
-  // Agrupar partidos por día
-  const dayMap = new Map<string, MatchResult[]>();
-  for (const m of matches) {
-    const d = toDateStr(m.kickoff);
-    if (!dayMap.has(d)) dayMap.set(d, []);
-    dayMap.get(d)!.push(m);
+  // Agrupar por etapa
+  const byStage = new Map<string, StageRow[]>();
+  for (const row of q.data ?? []) {
+    if (!byStage.has(row.stage)) byStage.set(row.stage, []);
+    byStage.get(row.stage)!.push(row);
   }
 
-  const days: DaySummary[] = [...dayMap.entries()]
-    .sort((a, b) => b[0].localeCompare(a[0])) // más reciente primero
-    .map(([date, ms]) => ({
-      date, label: fmtLabel(date), matches: ms,
-      predictions: predictions.filter((p) => ms.some((m) => m.id === p.match_id)),
-    }));
-
-  const currentDay = days[dayIdx];
-  const loading = matchesQ.isLoading || predsQ.isLoading;
+  const stageOrder = ["r32", "r16", "qf", "sf", "final"];
+  const activeStages = stageOrder.filter((s) => byStage.has(s));
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className="mx-auto max-w-3xl px-4 sm:px-6 pt-28 pb-20">
-        <Link to="/" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition mb-6">
-          <ArrowLeft className="w-3.5 h-3.5" /> Volver
+        <Link to="/fixture" className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition mb-6">
+          <ArrowLeft className="w-3.5 h-3.5" /> Volver al fixture
         </Link>
 
-        <div className="flex items-center gap-3 mb-2">
-          <Calendar className="w-5 h-5 text-primary" />
-          <span className="font-mono text-xs uppercase tracking-widest text-primary">Resumen por jornada</span>
+        <div className="flex items-center gap-2 text-xs font-mono uppercase tracking-widest text-primary mb-2">
+          <TrendingUp className="w-4 h-4" /> Por etapa
         </div>
-        <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight mb-8">
-          Resumen de <span className="text-gradient-hero">fechas</span>
+        <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight mb-2">
+          Resumen de <span className="text-gradient-hero">rondas</span>
         </h1>
+        <p className="text-muted-foreground mb-10 text-sm">
+          Quién sumó más puntos en cada fase eliminatoria.
+        </p>
 
-        {loading ? (
+        {q.isLoading ? (
           <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-        ) : days.length === 0 ? (
+        ) : activeStages.length === 0 ? (
           <div className="glass-strong rounded-2xl p-14 text-center">
-            <Calendar className="w-10 h-10 text-muted-foreground mx-auto mb-4 opacity-30" />
-            <h3 className="font-display font-bold text-xl mb-2">Sin fechas todavía</h3>
-            <p className="text-sm text-muted-foreground">El resumen aparece cuando el admin cargue los primeros resultados.</p>
+            <Swords className="w-10 h-10 text-muted-foreground mx-auto mb-4 opacity-30" />
+            <h3 className="font-display font-bold text-xl mb-2">Todavía no hay rondas</h3>
+            <p className="text-sm text-muted-foreground">
+              Aparece acá cuando terminen los primeros partidos de la fase eliminatoria.
+            </p>
           </div>
         ) : (
-          <>
-            {/* Navegación entre días */}
-            <div className="flex items-center gap-3 mb-6">
-              <button onClick={() => setDayIdx((i) => Math.min(days.length - 1, i + 1))}
-                disabled={dayIdx >= days.length - 1}
-                className="w-10 h-10 rounded-xl glass flex items-center justify-center hover:bg-card transition disabled:opacity-30">
-                <ChevronLeft className="w-5 h-5" />
-              </button>
+          <div className="space-y-6">
+            {activeStages.map((stage) => (
+              <StageCard key={stage} stage={stage} rows={byStage.get(stage)!} />
+            ))}
+          </div>
+        )}
 
-              <div className="flex-1 overflow-x-auto flex gap-2 pb-1 scrollbar-hide">
-                {days.map((d, i) => (
-                  <button key={d.date} onClick={() => setDayIdx(i)}
-                    className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-mono font-medium transition whitespace-nowrap ${
-                      i === dayIdx ? "bg-primary text-background" : "glass text-muted-foreground hover:text-foreground"
-                    }`}>
-                    {d.label}
-                  </button>
-                ))}
-              </div>
-
-              <button onClick={() => setDayIdx((i) => Math.max(0, i - 1))}
-                disabled={dayIdx <= 0}
-                className="w-10 h-10 rounded-xl glass flex items-center justify-center hover:bg-card transition disabled:opacity-30">
-                <ChevronRight className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Contenido del día */}
-            {currentDay && <DayView day={currentDay} />}
-          </>
+        {/* Mini leyenda */}
+        {activeStages.length > 0 && (
+          <div className="mt-8 flex flex-wrap items-center gap-4 text-xs text-muted-foreground font-mono justify-center">
+            <span className="flex items-center gap-1.5"><Star className="w-3 h-3 text-gold" /> = exacto en esa ronda</span>
+            <span className="flex items-center gap-1.5"><Trophy className="w-3 h-3 text-gold" /> = líder de ronda</span>
+          </div>
         )}
       </main>
     </div>
