@@ -1,7 +1,7 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, CalendarDays, Filter, ChevronDown, Swords, Clock } from "lucide-react";
+import { Loader2, CalendarDays, Filter, ChevronDown, Swords, Clock, Bell, BellOff } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { MatchCard, type MatchWithTeams, type Prediction } from "@/components/fixture/MatchCard";
@@ -25,6 +25,72 @@ const KNOCKOUT_STAGES = [
   { key: "third", label: "3° y 4° Puesto",     short: "3er puesto" },
   { key: "final", label: "⚽ Gran Final",       short: "Final" },
 ];
+
+/* ─── HOOK DE NOTIFICACIONES ─── */
+function useMatchNotifications(matches: MatchWithTeams[], predByMatch: Map<string, any>) {
+  const [enabled, setEnabled] = useState(false);
+  const [permission, setPermission] = useState<NotificationPermission>("default");
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    if ("Notification" in window) setPermission(Notification.permission);
+  }, []);
+
+  const clearTimers = useCallback(() => {
+    timersRef.current.forEach(clearTimeout);
+    timersRef.current = [];
+  }, []);
+
+  const scheduleNotifications = useCallback(() => {
+    clearTimers();
+    const now = Date.now();
+    const upcoming = matches.filter((m) => {
+      if (m.stage === "group") return false;
+      if (m.status !== "scheduled") return false;
+      const kickoff = new Date(m.kickoff).getTime();
+      return kickoff - now > 0 && kickoff - now <= 25 * 60 * 60 * 1000; // próximas 25hs
+    });
+
+    upcoming.forEach((m) => {
+      const kickoff = new Date(m.kickoff).getTime();
+      const notifyAt = kickoff - 60 * 60 * 1000; // 1 hora antes
+      const delay = notifyAt - now;
+      if (delay < 0) return;
+
+      const pred = predByMatch.get(m.id);
+      const predText = pred ? `Tu pronóstico: ${pred.home_score}-${pred.away_score}` : "⚠️ ¡Todavía no predijiste!";
+
+      const timer = setTimeout(() => {
+        new Notification(`⚽ En 1 hora: ${m.home?.name} vs ${m.away?.name}`, {
+          body: predText,
+          icon: m.home?.flag_url ?? undefined,
+        });
+      }, delay);
+      timersRef.current.push(timer);
+    });
+  }, [matches, predByMatch, clearTimers]);
+
+  const toggle = useCallback(async () => {
+    if (!("Notification" in window)) { alert("Tu navegador no soporta notificaciones."); return; }
+    if (!enabled) {
+      const perm = await Notification.requestPermission();
+      setPermission(perm);
+      if (perm === "granted") { setEnabled(true); scheduleNotifications(); }
+    } else {
+      setEnabled(false);
+      clearTimers();
+    }
+  }, [enabled, scheduleNotifications, clearTimers]);
+
+  // Re-schedule cuando cambian matches o predicciones
+  useEffect(() => {
+    if (enabled) scheduleNotifications();
+  }, [enabled, scheduleNotifications]);
+
+  useEffect(() => () => clearTimers(), [clearTimers]);
+
+  return { enabled, permission, toggle };
+}
 
 function toArgDate(iso: string) {
   return new Date(iso).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires", day: "2-digit", month: "2-digit", year: "numeric" });
@@ -214,6 +280,8 @@ function FixturePage() {
     setKnockoutStage(stageWithScheduled?.key ?? activeStages[activeStages.length - 1].key);
   }, [activeStages, knockoutByStage, knockoutStage]);
 
+  const { enabled: notiEnabled, permission: notiPerm, toggle: toggleNoti } = useMatchNotifications(allMatches, predByMatch);
+
   const totalPreds = predsQ.data?.length ?? 0;
   const totalMatches = (matchesQ.data ?? []).filter((m) => m.stage === "group").length;
   const allMatches = matchesQ.data ?? [];
@@ -280,6 +348,13 @@ function FixturePage() {
           }`}>
           <Filter className="w-4 h-4" /> Fase de Grupos
           {groupStageOver && <span className="text-[9px] font-mono text-muted-foreground/60 ml-0.5">(finalizada)</span>}
+        </button>
+        <button onClick={toggleNoti} title={notiPerm === "denied" ? "Notificaciones bloqueadas en el navegador" : notiEnabled ? "Desactivar recordatorios" : "Activar recordatorios 1h antes"}
+          className={`ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition ${
+            notiEnabled ? "bg-primary/20 text-primary border border-primary/30" : "glass text-muted-foreground hover:text-foreground"
+          } ${notiPerm === "denied" ? "opacity-40 cursor-not-allowed" : ""}`}>
+          {notiEnabled ? <Bell className="w-3.5 h-3.5" /> : <BellOff className="w-3.5 h-3.5" />}
+          <span className="hidden sm:inline">{notiEnabled ? "Recordatorios ON" : "Recordatorios"}</span>
         </button>
       </div>
 
